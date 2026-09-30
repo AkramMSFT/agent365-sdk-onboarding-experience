@@ -113,8 +113,11 @@ Rules, every language:
 - Give each server a distinct `name`; use it to scope the connection (directory, DB, repo).
 - Prefer **stdio** for local tools and **streamable-HTTP** for remote ones. Set a connect timeout and a tool-list cache where the SDK supports it.
 - Connect before the first run and keep connections alive for the host/session lifetime.
-  Close them during shutdown and on partial startup failure. Do not retain a previous
+  Close them during shutdown and if startup fails later. Do not retain a previous
   user's Work IQ clients on the shared base agent.
+- A server that fails to connect or list tools is logged and left out; it must not stop the
+  others. In Python and Node.js, check the servers before each run with the helper in
+  `.a365-kit/shared/mcp-server-health.md`.
 - Secrets (tokens, connection strings) go in `.env` and are read from the environment -- never hard-coded, never printed.
 
 ## Phase 2 -- Verify

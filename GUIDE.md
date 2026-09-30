@@ -536,6 +536,7 @@ Everything else is done by the CLI or a portal. These four need your own termina
 | Span export returns 401 or 403, or setup mentions `maven-prod` | The observability permission is missing. Say *Grant observability access to this agent.* and have an administrator grant what it reports. |
 | WorkIQ tools all return 401; agent says it has none | Set `PYTHON_ENVIRONMENT=Production` in `.env`, then restart the host. |
 | `UserError: Duplicate tool names across MCP servers` | Several WorkIQ servers collide; the add-on sets `include_server_in_tool_names`, so re-run it. |
+| One WorkIQ server fails and the agent loses every tool, or the whole turn fails | The SDK fails the run when any one server fails. Agents wired before kit 0.2.11 lack the per-server check; re-run *Add WorkIQ tools to this agent*. The log then names each server it skipped. |
 | Import fails on `microsoft_agents_a365.runtime` | Add `microsoft-agents-a365-runtime>=1.0.0` and install. |
 | Endpoint stops working after a tunnel restart | A recreated tunnel can change cluster; re-run the Step 6 `--update-endpoint` with the new URL. |
 | Teams turn fails with `MCPError` on a later message | External MCP tokens expire; keep servers open for the host's lifetime, not per turn. |

@@ -18,10 +18,13 @@ Secrets come from the environment, never hard-coded.
 
 from __future__ import annotations
 
+import logging
 import os
 from contextlib import AsyncExitStack, asynccontextmanager
 
 from agents.mcp import MCPServerStdio, MCPServerStreamableHttp
+
+logger = logging.getLogger(__name__)
 
 
 def build_external_mcp_servers() -> list:
@@ -80,7 +83,13 @@ async def connect_external_mcp_servers(servers=None):
     """Keep connections alive for the enclosing run/host lifetime, on the same task."""
     selected = EXTERNAL_MCP_SERVERS if servers is None else servers
     async with AsyncExitStack() as stack:
-        connected = [await stack.enter_async_context(server) for server in selected]
+        connected = []
+        for server in selected:
+            # One server that fails to start must not keep the others away.
+            try:
+                connected.append(await stack.enter_async_context(server))
+            except Exception as error:
+                logger.warning("External MCP server %s not connected: %s: %s", server.name, type(error).__name__, error)
         yield connected
 ```
 
@@ -110,6 +119,17 @@ expenses_agent = Agent(
 
 `existing_tools` and `existing_mcp_servers` stand for the consuming agent's current
 collections. This is an integration fragment, not a new replacement agent.
+
+The SDK lists tools from every attached server when a run starts, and one failure fails the
+run. Copy `healthy_mcp_agent` from `.a365-kit/shared/mcp-server-health.md` into
+`mcp_health.py` and run the copy it returns, so a server that did not connect or stops
+answering is left out for that turn:
+
+```python
+from mcp_health import healthy_mcp_agent
+
+result = await Runner.run(await healthy_mcp_agent(expenses_agent), message)
+```
 
 Keep the connections open around the **entire** host/session lifetime:
 

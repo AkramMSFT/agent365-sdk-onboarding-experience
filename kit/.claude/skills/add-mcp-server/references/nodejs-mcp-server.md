@@ -2,7 +2,8 @@
 
 Port of the Python reference. `MCPServerStdio` / `MCPServerStreamableHttp` are exported by
 `@openai/agents`. Construction is lazy: connect before running, and close at host shutdown
-or after partial startup failure. No tenant call is needed to check these lifecycle rules.
+or if startup fails later. A server that fails to connect is logged and left out; it does not
+stop the others. No tenant call is needed to check these lifecycle rules.
 
 ## `src/mcpServers.ts`
 
@@ -54,13 +55,11 @@ export async function connectExternalMcpServers(servers = buildExternalMcpServer
       if (result.status === 'rejected') console.warn('External MCP cleanup failed:', result.reason);
     }
   };
-  try {
-    for (const server of servers) await server.connect();
-    return { servers, close };
-  } catch (error) {
-    await close();
-    throw error;
-  }
+  const results = await Promise.allSettled(servers.map(server => server.connect()));
+  results.forEach((result, i) => {
+    if (result.status === 'rejected') console.warn(`External MCP server ${servers[i].name} not connected:`, result.reason);
+  });
+  return { servers, close };
 }
 ```
 
@@ -81,6 +80,17 @@ try {
 } finally {
   await external.close();
 }
+```
+
+The SDK lists tools from every attached server when a run starts, and one failure fails the
+run. Copy `healthyMcpAgent` from `.a365-kit/shared/mcp-server-health.md` into
+`src/mcpHealth.ts` and run the copy it returns, so a server that did not connect or stops
+answering is left out for that turn:
+
+```typescript
+import { healthyMcpAgent } from './mcpHealth';
+
+const result = await run(await healthyMcpAgent(agent), prompt);
 ```
 
 `npx` ships with Node; `uvx` needs `uv`. Verify with `npm run build`, start the agent, confirm the server's tools list. Same governance as the Python reference: scope tightly, secrets from env, treat output as untrusted, pair with `purview-dlp-integration`.

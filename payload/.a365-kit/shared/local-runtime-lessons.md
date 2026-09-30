@@ -95,6 +95,10 @@ different checks.
 - Namespace tools by source server. Preserve the underlying schema and dispatch,
   enforce provider name limits and detect collisions after normalization.
 - Preserve existing local/lab tools. Never replace the tool collection.
+- One failing MCP server must not stop the others. The OpenAI Agents SDK (Python and
+  Node.js) and Agent Framework fail the whole run when one server cannot connect or list
+  tools. Check the servers before each run and pass on the healthy ones; see
+  `mcp-server-health.md`.
 - Keep certificate validation enabled, constrain credential-bearing endpoints,
   and dispose MCP clients per turn. The pinned .NET SDK's development transport
   disables certificate validation; the extended example overrides transport

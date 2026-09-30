@@ -120,6 +120,8 @@ export async function getClient(
 }
 ```
 
+The LangChain extension connects every Work IQ server through one `MultiServerMCPClient`, which throws on the first server that fails, so the fallback above runs the turn with no Work IQ tools. Log the whole error so the failing server can be found. See `.a365-kit/shared/mcp-server-health.md`.
+
 ---
 
 ## Optional: Word @mention notification handling (LangChain — BEST-EFFORT)
@@ -267,6 +269,13 @@ export async function getClient(
 
   return new OpenAIClient(agent, turnContext);
 }
+```
+
+**One failing server must not stop the rest.** The SDK lists tools from every server when `run()` starts and one failure fails the turn, and the sample's `OpenAIClient` connects servers one at a time. Copy `healthyMcpAgent` from `.a365-kit/shared/mcp-server-health.md` into `src/mcpHealth.ts`, then connect and run like this in the client:
+
+```typescript
+await Promise.allSettled(this.agent.mcpServers.map((server) => server.connect()));
+const result = await run(await healthyMcpAgent(this.agent), prompt);
 ```
 
 ---

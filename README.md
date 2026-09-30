@@ -243,7 +243,7 @@ From there it previews `a365 setup all` with `--dry-run`, shows exactly what wil
 | `grant-observability-access` | `a365 setup all` grants the observability permission only when a Global Administrator runs it. Checks what is missing without changing anything, then grants it once an administrator signs in and confirms, including the blueprint role that Java, Go and Rust exporters need. |
 | `test-local-channel` | Microsoft's `test-local` targets AI Teammates only, so a blueprint agent had no local test path: its host rejects every unauthenticated request. Adds a loopback-only dev channel on its own port, off unless `A365_DEV_CHANNEL=true`. |
 
-An agent gets tools three ways and the kit covers all three: Work IQ MCP servers (Microsoft-hosted, Entra-gated), local function tools, and external MCP servers (the wider ecosystem, ungoverned by Agent 365). Only the first appears in the Agent 365 registry, and the add-ons for the other two say so.
+An agent gets tools three ways and the kit covers all three: Work IQ MCP servers (Microsoft-hosted, Entra-gated), local function tools, and external MCP servers (the wider ecosystem, ungoverned by Agent 365). Only the first appears in the Agent 365 registry, and the add-ons for the other two say so. When one MCP server fails, the others keep working: for the SDKs that would otherwise fail the whole turn, the kit checks each server before the run.
 
 ## Supported CLIs
 
@@ -289,7 +289,7 @@ This is a repackage, not a fork. The build clones upstream fresh on every run an
 Changes fall into two groups, both itemised in [`NOTICE.md`](NOTICE.md):
 
 - **Packaging.** Path tokens, hook commands, the plugin command namespace, and a guard that would otherwise disable itself outside a plugin install. Mechanical, no behaviour change.
-- **Defects found while onboarding real agents.** Mostly in the observability path, where several independent faults each left an agent tracing every turn and exporting none of it. Every one is documented with the failure it causes and upstream's own justification for the fix.
+- **Defects found while onboarding real agents.** Mostly in the observability path, where several independent faults each left an agent tracing every turn and exporting none of it. Also in the Work IQ wiring, where one MCP server that failed took every tool down with it. Every one is documented with the failure it causes and upstream's own justification for the fix.
 
 Problems with what the skills *do* belong upstream at [microsoft/agent365-skills](https://github.com/microsoft/agent365-skills/issues). Problems with the packaging, launchers, prerequisite checker or build belong here.
 

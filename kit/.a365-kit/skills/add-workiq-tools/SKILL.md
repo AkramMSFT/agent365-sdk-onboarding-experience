@@ -357,7 +357,7 @@ The wiring pattern depends on **both** `programmingLanguage` and `agentStack` fr
 
 For every branch:
 1. Mark new code with `// A365 WorkIQ — added by add-workiq-tools skill` (.NET / Node.js) or `# A365 WorkIQ — added by add-workiq-tools skill` (Python). For **best-effort** branches use `… best-effort wiring (verify against SDK source before production)` instead.
-2. **Grep** for the framework's wiring symbol (`GetMcpToolsAsync` / `AddToolServersToAgentAsync` / `addToolServersToAgent` / `add_tool_servers_to_agent` / `McpToolRegistrationService` / `AgentFrameworkMcpTools`) before editing — skip the wiring step if already present.
+2. **Grep** for the framework's wiring symbol (`GetMcpToolsAsync` / `AddToolServersToAgentAsync` / `addToolServersToAgent` / `add_tool_servers_to_agent` / `McpToolRegistrationService` / `AgentFrameworkMcpTools`) before editing — skip the wiring step if already present. If the wiring is there but an OpenAI Agents SDK or Agent Framework agent has no MCP server health check (`healthy_mcp_agent`, `healthy_mcp_tools` or `healthyMcpAgent`), add just the check from `.a365-kit/shared/mcp-server-health.md`.
 
 ### ⚠️ Preserve-observability rule (applies to ALL §4.x branches that edit the message-handler file)
 
@@ -432,6 +432,7 @@ Tell the user verbatim: *"Microsoft publishes the `Microsoft.Agents.A365.Tooling
    ```
 2. **Read** `nodejs-workiq.md` — section "OpenAI Agents SDK — Wiring (VERIFIED)".
 3. **Edit** the `getClient` factory. OpenAI extension **mutates `agent.mcpServers` in place** — do not assign the return to a new variable (that's the LangChain pattern). Sample uses variable name `agent`, not `personalizedAgent`.
+4. **Write** `src/mcpHealth.ts` from `.a365-kit/shared/mcp-server-health.md` and use it where the client connects and runs, as `nodejs-workiq.md` shows. Without it one failing Work IQ server fails the turn.
 
 ### §4.6 Node.js Claude SDK
 
@@ -454,6 +455,7 @@ Tell the user verbatim: *"Microsoft publishes the `Microsoft.Agents.A365.Tooling
    > Package suffix is **`agentframework`** (single word, no internal dash). `…-agent-framework` is not a valid PyPI name and will fail `pip install`.
 2. **Read** `python-workiq.md` — section "Python Agent Framework — Wiring (VERIFIED)".
 3. **Edit** `agent.py` to add the `tool_service` singleton, `mcp_servers_initialized` flag, the `setup_mcp_servers` method, and the call from `process_user_message`. **AF kwarg is `turn_context=`**, not `context=`. **`initial_tools=[]` is required** (positional, no default).
+4. **Write** `mcp_health.py` with `healthy_mcp_tools` from `.a365-kit/shared/mcp-server-health.md` and call it before `self.agent.run`, as `python-workiq.md` shows. Without it one failing Work IQ server fails the run.
 
 ### §4.8 Python OpenAI
 
@@ -465,6 +467,7 @@ Tell the user verbatim: *"Microsoft publishes the `Microsoft.Agents.A365.Tooling
    Edit `requirements.txt` / `pyproject.toml` to add both package names.
 2. **Read** `python-workiq.md` — section "Python OpenAI Agents SDK — Wiring (VERIFIED)".
 3. **Edit** `agent.py` with the sample's 3-priority ladder (USE_AGENTIC_AUTH → bearer-token → handler-only). Kwarg is `context=` (not `turn_context=`). No `agentic_app_id`, no `initial_tools` (OpenAI extension doesn't require it).
+4. **Write** `mcp_health.py` with `healthy_mcp_agent` from `.a365-kit/shared/mcp-server-health.md` and run the agent it returns, as `python-workiq.md` shows. Without it one failing Work IQ server fails the run.
 
 ### §4.9 Python Google ADK
 

@@ -28,46 +28,50 @@ public sealed class ExternalMcpServers : IAsyncDisposable
     public static async Task<ExternalMcpServers> BuildAsync()
     {
         var result = new ExternalMcpServers();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        try
-        {
 
         // Scope the filesystem server to one directory.
         var fsRoot = Environment.GetEnvironmentVariable("AGENT_FS_ROOT");
         if (!string.IsNullOrEmpty(fsRoot))
         {
-            var client = await McpClient.CreateAsync(new StdioClientTransport(new()
+            await result.AddAsync("filesystem", token => McpClient.CreateAsync(new StdioClientTransport(new()
             {
                 Name = "filesystem",
                 Command = "npx",
                 Arguments = ["-y", "@modelcontextprotocol/server-filesystem", fsRoot],
-            }), cancellationToken: timeout.Token);
-            result._clients.Add(client);
-            result._tools.AddRange((await client.ListToolsAsync(cancellationToken: timeout.Token))
-                .Select(tool => tool.WithName($"filesystem_{tool.Name}")));
+            }), cancellationToken: token));
         }
 
         // Connect only to a remote server you trust.
         var httpUrl = Environment.GetEnvironmentVariable("AGENT_MCP_HTTP_URL");
         if (!string.IsNullOrEmpty(httpUrl))
         {
-            var client = await McpClient.CreateAsync(
+            await result.AddAsync("remote", token => McpClient.CreateAsync(
                 new HttpClientTransport(new() {
                     Name = "remote", Endpoint = new Uri(httpUrl),
                     TransportMode = HttpTransportMode.StreamableHttp,
-                }), cancellationToken: timeout.Token);
-            result._clients.Add(client);
-            result._tools.AddRange((await client.ListToolsAsync(cancellationToken: timeout.Token))
-                .Select(tool => tool.WithName($"remote_{tool.Name}")));
+                }), cancellationToken: token));
         }
 
-            return result;
-        }
-        catch
+        return result;
+    }
+
+    // A server that fails to connect or list tools is logged and left out, so it cannot
+    // keep the other servers away.
+    private async Task AddAsync(string name, Func<CancellationToken, Task<McpClient>> connect)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        McpClient? client = null;
+        try
         {
-            try { await result.DisposeAsync(); }
-            catch (Exception cleanupError) { Console.Error.WriteLine($"External MCP cleanup failed: {cleanupError.Message}"); }
-            throw;
+            client = await connect(timeout.Token);
+            var tools = await client.ListToolsAsync(cancellationToken: timeout.Token);
+            _clients.Add(client);
+            _tools.AddRange(tools.Select(tool => tool.WithName($"{name}_{tool.Name}")));
+        }
+        catch (Exception error)
+        {
+            Console.Error.WriteLine($"External MCP server {name} skipped: {error.Message}");
+            if (client is not null) await client.DisposeAsync();
         }
     }
 
@@ -94,5 +98,6 @@ await app.RunAsync(); // keep clients alive until the existing host stops
 
 Prerequisites and governance match the Python reference: `npx`/`uvx` for stdio servers, secrets from the environment, scope every server tightly, treat output as untrusted, and pair with `purview-dlp-integration`. Build with `dotnet build` and confirm the agent still starts and lists the new tools.
 Keep the disposable owner, not just the tool list. It closes all connected clients at
-shutdown, including clients created before a startup/list-tools failure. The model-facing
-names are prefixed per server; `WithName` preserves the original remote MCP tool name.
+shutdown. A server that fails at startup is closed straight away and its tools are left out;
+restart the host once it is fixed. The model-facing names are prefixed per server; `WithName`
+preserves the original remote MCP tool name.

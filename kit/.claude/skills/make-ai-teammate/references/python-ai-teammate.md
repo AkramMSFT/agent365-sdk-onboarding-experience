@@ -189,6 +189,12 @@ class MyAgent(AgentInterface):
         # https://github.com/microsoft/Agent365-Samples/blob/main/python/agent-framework/sample-agent/agent.py
         if hasattr(self, "setup_mcp_servers"):
             await self.setup_mcp_servers(auth, auth_handler_name, context, instructions=prompt)
+            # One MCP tool that fails to connect would fail the run. Helper: .a365-kit/shared/mcp-server-health.md
+            from mcp_health import healthy_mcp_tools
+
+            if getattr(self, "_mcp_agent", None) is not self.agent:
+                self._mcp_agent, self._all_mcp_tools = self.agent, list(self.agent.mcp_tools)
+            self.agent.mcp_tools = await healthy_mcp_tools(self._all_mcp_tools)
             result = await self.agent.run(message)
         else:
             result = await self.agent.run(message, system_prompt=prompt)
@@ -711,6 +717,10 @@ class MyAgent(AgentInterface):
             await self.setup_mcp_servers(auth, auth_handler_name, context)
             # Re-derive from the now-MCP-bearing self.agent so this turn gets the tools too.
             personalized_agent = dataclasses.replace(self.agent, instructions=prompt)
+            # One MCP server that cannot list tools would fail the run. Helper: .a365-kit/shared/mcp-server-health.md
+            from mcp_health import healthy_mcp_agent
+
+            personalized_agent = await healthy_mcp_agent(personalized_agent)
 
         result = await Runner.run(personalized_agent, message)
         return result.final_output or "Sorry, I couldn't get a response."

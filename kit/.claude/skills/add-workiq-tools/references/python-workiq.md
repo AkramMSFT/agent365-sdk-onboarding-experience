@@ -92,6 +92,7 @@ Sample: https://github.com/microsoft/Agent365-Samples/blob/main/python/agent-fra
 from microsoft_agents_a365.tooling.extensions.agentframework.services.mcp_tool_registration_service import (
     McpToolRegistrationService,
 )
+from mcp_health import healthy_mcp_tools  # .a365-kit/shared/mcp-server-health.md
 ```
 
 **Wiring** — instantiate the service in `__init__`, then attach MCP tools per agent lifetime (idempotent via `mcp_servers_initialized` flag). The sample uses a two-branch ladder switched by `USE_AGENTIC_AUTH`:
@@ -149,6 +150,11 @@ class MyAgent:
 
     async def process_user_message(self, message, auth, auth_handler_name, context):
         await self.setup_mcp_servers(auth, auth_handler_name, context)
+        # Agent Framework connects each MCP tool when the run starts and one failure fails the
+        # run. The full list lets a server left out this turn back in on the next one.
+        if getattr(self, "_mcp_agent", None) is not self.agent:
+            self._mcp_agent, self._all_mcp_tools = self.agent, list(self.agent.mcp_tools)
+        self.agent.mcp_tools = await healthy_mcp_tools(self._all_mcp_tools)
         result = await self.agent.run(message)
         return self._extract_result(result)
 ```
@@ -179,6 +185,7 @@ Sample: https://github.com/microsoft/Agent365-Samples/blob/main/python/openai/sa
 from microsoft_agents_a365.tooling.extensions.openai.mcp_tool_registration_service import (
     McpToolRegistrationService,
 )
+from mcp_health import healthy_mcp_agent  # .a365-kit/shared/mcp-server-health.md
 ```
 
 **Wiring** — the OpenAI sample uses a 3-priority ladder: `USE_AGENTIC_AUTH` → bearer token in config → auth handler only. Direct copy of the sample's call sites:
@@ -231,7 +238,10 @@ class MyAgent:
 
     async def process_user_message(self, message, auth, auth_handler_name, context):
         await self.setup_mcp_servers(auth, auth_handler_name, context)
-        # ...invoke self.agent per OpenAI Agents SDK pattern...
+        # The SDK lists tools from every server when the run starts and one failure fails the
+        # run, so leave out servers that cannot list tools this turn. self.agent keeps them all.
+        agent = await healthy_mcp_agent(self.agent)
+        # ...invoke agent per OpenAI Agents SDK pattern...
 ```
 
 ### Parameter semantics differences from AF

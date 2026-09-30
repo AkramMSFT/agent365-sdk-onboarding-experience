@@ -104,6 +104,9 @@ jobs:
       - name: Bulk onboarding tool tests
         run: node --test build/test-bulk-onboard.mjs
 
+      - name: MCP server health helper tests
+        run: node --test build/test-mcp-server-health.mjs
+
       - name: Workspace tool copies the kit and an example
         shell: pwsh
         run: |

@@ -28,6 +28,8 @@ It listens on `HOST` and `PORT` from `.env`, by default `127.0.0.1:3978`. `GET /
 
 `ENABLE_WORKIQ` and `ENABLE_A365_OBSERVABILITY_EXPORTER` start as `false`. Turn them on only after registration, consent and licensing are in place.
 
+With Work IQ on, this host fails closed on purpose. If any Work IQ server fails to connect or list its tools, the turn stops before the model is called and the user gets a short apology, so the agent never answers without a tool the user expected. To carry on with the servers that work instead, use the helper in `.a365-kit/shared/mcp-server-health.md`.
+
 ## Onboarding it to Agent 365
 
 Start your CLI in this folder, say *Onboard this agent to Agent 365.* and choose the AI Teammate capability. The kit's Python guidance for this pinned profile is in `.a365-kit/shared/local-runtime-lessons.md`.

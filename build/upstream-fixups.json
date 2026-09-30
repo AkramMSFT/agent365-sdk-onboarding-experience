@@ -572,5 +572,96 @@
     "find": "> - \"add Purview blocking to my Node.js / Python / .NET agent\"\n",
     "replace": "> - \"add Purview blocking to my Node.js / Python / .NET agent\"\n\n> **Kit notes:** Before Step 2, read `.a365-kit/shared/purview-kit-notes.md`. It covers projects already wired by the kit's retired DLP add-on, what the gate does not inspect, matching the application id, admin roles, and Insider Risk visibility.\n",
     "expectedCount": 1
+  },
+  {
+    "id": "skills.add-workiq-tools.references.python-workiq.md#m1",
+    "path": "skills\\add-workiq-tools\\references\\python-workiq.md",
+    "find": "from microsoft_agents_a365.tooling.extensions.openai.mcp_tool_registration_service import (\n    McpToolRegistrationService,\n)\n",
+    "replace": "from microsoft_agents_a365.tooling.extensions.openai.mcp_tool_registration_service import (\n    McpToolRegistrationService,\n)\nfrom mcp_health import healthy_mcp_agent  # .a365-kit/shared/mcp-server-health.md\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.add-workiq-tools.references.python-workiq.md#m2",
+    "path": "skills\\add-workiq-tools\\references\\python-workiq.md",
+    "find": "        await self.setup_mcp_servers(auth, auth_handler_name, context)\n        # ...invoke self.agent per OpenAI Agents SDK pattern...\n",
+    "replace": "        await self.setup_mcp_servers(auth, auth_handler_name, context)\n        # The SDK lists tools from every server when the run starts and one failure fails the\n        # run, so leave out servers that cannot list tools this turn. self.agent keeps them all.\n        agent = await healthy_mcp_agent(self.agent)\n        # ...invoke agent per OpenAI Agents SDK pattern...\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.add-workiq-tools.references.python-workiq.md#m3",
+    "path": "skills\\add-workiq-tools\\references\\python-workiq.md",
+    "find": "from microsoft_agents_a365.tooling.extensions.agentframework.services.mcp_tool_registration_service import (\n    McpToolRegistrationService,\n)\n",
+    "replace": "from microsoft_agents_a365.tooling.extensions.agentframework.services.mcp_tool_registration_service import (\n    McpToolRegistrationService,\n)\nfrom mcp_health import healthy_mcp_tools  # .a365-kit/shared/mcp-server-health.md\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.add-workiq-tools.references.python-workiq.md#m4",
+    "path": "skills\\add-workiq-tools\\references\\python-workiq.md",
+    "find": "        await self.setup_mcp_servers(auth, auth_handler_name, context)\n        result = await self.agent.run(message)\n        return self._extract_result(result)\n",
+    "replace": "        await self.setup_mcp_servers(auth, auth_handler_name, context)\n        # Agent Framework connects each MCP tool when the run starts and one failure fails the\n        # run. The full list lets a server left out this turn back in on the next one.\n        if getattr(self, \"_mcp_agent\", None) is not self.agent:\n            self._mcp_agent, self._all_mcp_tools = self.agent, list(self.agent.mcp_tools)\n        self.agent.mcp_tools = await healthy_mcp_tools(self._all_mcp_tools)\n        result = await self.agent.run(message)\n        return self._extract_result(result)\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.add-workiq-tools.references.nodejs-workiq.md#m1",
+    "path": "skills\\add-workiq-tools\\references\\nodejs-workiq.md",
+    "find": "  return new OpenAIClient(agent, turnContext);\n}\n```\n",
+    "replace": "  return new OpenAIClient(agent, turnContext);\n}\n```\n\n**One failing server must not stop the rest.** The SDK lists tools from every server when `run()` starts and one failure fails the turn, and the sample's `OpenAIClient` connects servers one at a time. Copy `healthyMcpAgent` from `.a365-kit/shared/mcp-server-health.md` into `src/mcpHealth.ts`, then connect and run like this in the client:\n\n```typescript\nawait Promise.allSettled(this.agent.mcpServers.map((server) => server.connect()));\nconst result = await run(await healthyMcpAgent(this.agent), prompt);\n```\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.add-workiq-tools.references.nodejs-workiq.md#m2",
+    "path": "skills\\add-workiq-tools\\references\\nodejs-workiq.md",
+    "find": "  return new LangChainClient(agentWithMcpTools || personalizedAgent, turnContext);\n}\n```\n",
+    "replace": "  return new LangChainClient(agentWithMcpTools || personalizedAgent, turnContext);\n}\n```\n\nThe LangChain extension connects every Work IQ server through one `MultiServerMCPClient`, which throws on the first server that fails, so the fallback above runs the turn with no Work IQ tools. Log the whole error so the failing server can be found. See `.a365-kit/shared/mcp-server-health.md`.\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.add-workiq-tools.SKILL.md#m1",
+    "path": "skills\\add-workiq-tools\\SKILL.md",
+    "find": "Sample uses variable name `agent`, not `personalizedAgent`.\n",
+    "replace": "Sample uses variable name `agent`, not `personalizedAgent`.\n4. **Write** `src/mcpHealth.ts` from `.a365-kit/shared/mcp-server-health.md` and use it where the client connects and runs, as `nodejs-workiq.md` shows. Without it one failing Work IQ server fails the turn.\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.add-workiq-tools.SKILL.md#m2",
+    "path": "skills\\add-workiq-tools\\SKILL.md",
+    "find": "**`initial_tools=[]` is required** (positional, no default).\n",
+    "replace": "**`initial_tools=[]` is required** (positional, no default).\n4. **Write** `mcp_health.py` with `healthy_mcp_tools` from `.a365-kit/shared/mcp-server-health.md` and call it before `self.agent.run`, as `python-workiq.md` shows. Without it one failing Work IQ server fails the run.\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.add-workiq-tools.SKILL.md#m3",
+    "path": "skills\\add-workiq-tools\\SKILL.md",
+    "find": "No `agentic_app_id`, no `initial_tools` (OpenAI extension doesn't require it).\n",
+    "replace": "No `agentic_app_id`, no `initial_tools` (OpenAI extension doesn't require it).\n4. **Write** `mcp_health.py` with `healthy_mcp_agent` from `.a365-kit/shared/mcp-server-health.md` and run the agent it returns, as `python-workiq.md` shows. Without it one failing Work IQ server fails the run.\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.make-ai-teammate.references.python-ai-teammate.md#m1",
+    "path": "skills\\make-ai-teammate\\references\\python-ai-teammate.md",
+    "find": "            await self.setup_mcp_servers(auth, auth_handler_name, context, instructions=prompt)\n            result = await self.agent.run(message)\n",
+    "replace": "            await self.setup_mcp_servers(auth, auth_handler_name, context, instructions=prompt)\n            # One MCP tool that fails to connect would fail the run. Helper: .a365-kit/shared/mcp-server-health.md\n            from mcp_health import healthy_mcp_tools\n\n            if getattr(self, \"_mcp_agent\", None) is not self.agent:\n                self._mcp_agent, self._all_mcp_tools = self.agent, list(self.agent.mcp_tools)\n            self.agent.mcp_tools = await healthy_mcp_tools(self._all_mcp_tools)\n            result = await self.agent.run(message)\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.make-ai-teammate.references.python-ai-teammate.md#m2",
+    "path": "skills\\make-ai-teammate\\references\\python-ai-teammate.md",
+    "find": "            personalized_agent = dataclasses.replace(self.agent, instructions=prompt)\n\n        result = await Runner.run(personalized_agent, message)\n",
+    "replace": "            personalized_agent = dataclasses.replace(self.agent, instructions=prompt)\n            # One MCP server that cannot list tools would fail the run. Helper: .a365-kit/shared/mcp-server-health.md\n            from mcp_health import healthy_mcp_agent\n\n            personalized_agent = await healthy_mcp_agent(personalized_agent)\n\n        result = await Runner.run(personalized_agent, message)\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.make-ai-teammate.SKILL.md#m1",
+    "path": "skills\\make-ai-teammate\\SKILL.md",
+    "find": "(`BaggageBuilder` import, `with builder.build():` block) — preserve, don't overwrite.",
+    "replace": "(`BaggageBuilder` import, `with builder.build():` block) — preserve, don't overwrite. When `setup_mcp_servers` is present, also make sure `mcp_health.py` exists (from `.a365-kit/shared/mcp-server-health.md`), because the template calls its helper.",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.add-workiq-tools.SKILL.md#m4",
+    "path": "skills\\add-workiq-tools\\SKILL.md",
+    "find": "skip the wiring step if already present.\n",
+    "replace": "skip the wiring step if already present. If the wiring is there but an OpenAI Agents SDK or Agent Framework agent has no MCP server health check (`healthy_mcp_agent`, `healthy_mcp_tools` or `healthyMcpAgent`), add just the check from `.a365-kit/shared/mcp-server-health.md`.\n",
+    "expectedCount": 1
   }
 ]

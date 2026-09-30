@@ -279,6 +279,18 @@ The kit adds short pointers to its own material in a few places, and nowhere els
 
 These change where a CLI looks, not what Microsoft's phases do.
 
+### 21. Work IQ: one failing MCP server no longer stops the rest
+
+The OpenAI Agents SDK, in Python and Node.js, lists tools from every attached MCP server when a run starts, and Agent Framework connects each one. A single server that fails fails the whole run. Microsoft's Work IQ wiring and AI Teammate templates run the agent with every discovered server attached, so one server that lacks consent or is down stops every Work IQ tool. The kit adds a check that leaves out the failing servers for that turn, kept in `.a365-kit/shared/mcp-server-health.md`, and calls it from:
+
+- `add-workiq-tools/references/python-workiq.md`: the OpenAI Agents SDK and Agent Framework `process_user_message` examples and their imports.
+- `add-workiq-tools/references/nodejs-workiq.md`: a note after the OpenAI Agents SDK example with the connect and run, and a note after the LangChain example that one failure there still loses every Work IQ tool.
+- `add-workiq-tools/SKILL.md`: a fourth step in sections 4.5, 4.7 and 4.8 to write the helper, and a line so that re-running the skill on an agent wired earlier adds just the check.
+- `make-ai-teammate/references/python-ai-teammate.md`: the Agent Framework and OpenAI Agents SDK templates, inside the branch that runs only once Work IQ is wired.
+- `make-ai-teammate/SKILL.md`: the rule that preserves Work IQ wiring also keeps the helper.
+
+Google ADK 2.0 and later and the .NET tooling library already skip a failing server, so their paths are unchanged. The helpers were run against openai-agents 0.20.0, @openai/agents 0.17.0 and 0.18.0, and agent-framework-core 1.17.0, with local servers that answer tools/list with HTTP 403, answer with a JSON-RPC error, never answer, or refuse the connection. `build/test-mcp-server-health.mjs` runs them on every build.
+
 ---
 
 ## Kit add-ons: not Microsoft's
@@ -290,7 +302,7 @@ Everything under `.a365-kit/addons/` (and its copies in `.claude/skills/` and `.
 | `add-messaging-endpoint` | `make-a365-agent` asks for a messaging endpoint but never creates the HTTP host; blueprint-based agents built from a CLI or library end up registered but unreachable. Adds the host, the tunnel, and the endpoint registration; hands off the one broker-bound step. | Python host verified live on `microsoft-agents` 1.6.0 (2026-09-04). Node.js and .NET reference upstream's own hosting layers, which need no change for this path. |
 | `a365-kit` | Kit maintenance from inside the CLI: prerequisite check, versions, in-place update, and choosing the update source (public release or an internal mirror). Thin wrapper over the launchers. | Kit-authored. |
 | `add-lab-tools` | Local in-process utility tools an agent otherwise lacks: web fetch / page summarise, encoders/decoders, hashing, text transforms. Dual-use (the web fetch is egress + prompt-injection surface); opt-in and clearly labelled. | Python verified live on a hosted agent (2026-09-04); Node.js and .NET are faithful ports awaiting a run. |
-| `add-mcp-server` | Connects the agent to any external / community MCP server (filesystem, git, GitHub, Postgres, web fetch, Slack, Playwright, …) beyond Microsoft's Work IQ set. Governance boundary: external servers are NOT registered in Agent 365 or gated by Entra; opt-in, clearly labelled, paired with DLP guidance. | Python wiring pattern API-verified on the live SDK (`MCPServerStdio`/`StreamableHttp`); Node.js and .NET are faithful ports awaiting a run. |
+| `add-mcp-server` | Connects the agent to any external / community MCP server (filesystem, git, GitHub, Postgres, web fetch, Slack, Playwright, …) beyond Microsoft's Work IQ set. Governance boundary: external servers are NOT registered in Agent 365 or gated by Entra; opt-in, clearly labelled, paired with DLP guidance. | Python wiring pattern API-verified on the live SDK (`MCPServerStdio`/`StreamableHttp`). From 0.2.11 a server that fails to start is logged and skipped instead of stopping the others: the Python startup code was run against openai-agents 0.20.0, and the .NET reference was compiled and run against ModelContextProtocol 1.4.1, each with healthy, refusing and missing servers side by side. Node.js is a faithful port awaiting a run. |
 | `grant-observability-access` | `a365 setup all` grants `Agent365.Observability.OtelWrite` only when a Global Administrator runs it, and otherwise prints a hand-off. Checks the delegated consent and the application roles read-only, then grants what is missing after an administrator signs in to `az` and confirms. Java, Go and Rust exporters sign in as the blueprint, so the blueprint can be included. | Mirrors the CLI 1.1.221 grant logic: the consent scope, the role name and the fallback PowerShell come from its source. Offline tests cover every Graph call. A grant followed by a read-only check completed against a live tenant on 2026-09-24. |
 | `test-local-channel` | Microsoft's `test-local` is written throughout for the AI Teammate path, so a blueprint agent had no local test route at all: its host rejects every unauthenticated request, which is deliberate. Adds a dev channel on its own loopback-bound port, off unless `A365_DEV_CHANNEL=true`, leaving `/api/messages` fully authenticated. | Python module run and verified: with the flag unset the port refuses connections; with it set, `/dev/health` returns 200, `/dev/chat` answers without a token, a request carrying `X-Forwarded-For` is refused 403, the socket is bound to 127.0.0.1 rather than the wildcard, and the production endpoint still returns 401. Node.js and .NET are faithful ports awaiting a run. |
 | `add-java-agent` | Microsoft ships no Java SDK, so a Java agent can be registered and published but has no host, no inbound token validation and no way to export telemetry. Adds all three. Registration and the portal steps are language-agnostic and stay with the Microsoft skills. | Compiled on JDK 21 and run: health 200, anonymous POST 401, forged bearer 401, GET 405. The OTLP encoder was matched field by field against the Python SDK's output. Dry-run end to end through GitHub Copilot CLI on a fresh Maven project: the CLI found the skill, wrote the five classes, wired them to the project's own agent class rather than a stub, added both dependencies, compiled, and reproduced the non-standard wire format correctly. Not yet exercised against a tenant from Java, because a real inbound activity and Connector reply need a published agent. |
@@ -308,10 +320,10 @@ The September 2026 audit also re-verified the add-ons offline: every Python, Nod
 ## What is *not* changed
 
 - No phase ordering, decision matrix, or trigger phrases.
-- No code patterns in `references/` beyond the token-resolver fix in section 11 and the SDK corrections itemised in section 18, all of which are asserted against upstream's text on every build.
+- No code patterns in `references/` beyond the token-resolver fix in section 11, the SDK corrections itemised in section 18 and the MCP server check in section 21, all of which are asserted against upstream's text on every build.
 - No skill logic beyond the exporter switch in section 10, which is applied to bring the Node.js and Python paths into line with what upstream's .NET path already does.
-- No validator check logic beyond the fixes in sections 8, 9, 11 to 17 and 19, and no code pattern beyond the token-resolver fix in section 11 and the SDK corrections in section 18; the validators otherwise enforce exactly what upstream enforces.
-- Nothing added to the skills beyond the pointers in section 20. The kit's own Purview, hosting and hardening content lives in the separately labelled add-ons above.
+- No validator check logic beyond the fixes in sections 8, 9, 11 to 17 and 19, and no code pattern beyond the token-resolver fix in section 11, the SDK corrections in section 18 and the MCP server check in section 21; the validators otherwise enforce exactly what upstream enforces.
+- Nothing added to the skills beyond the pointers in section 20 and the steps in section 21. The kit's own Purview, hosting and hardening content lives in the separately labelled add-ons above.
 
 ## Reporting issues
 

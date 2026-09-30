@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "bundleVersion": "0.2.10",
-  "kitVersion": "0.2.10",
+  "bundleVersion": "0.2.11",
+  "kitVersion": "0.2.11",
   "upstreamRepo": "microsoft/agent365-skills",
   "upstreamVersion": "1.0.2",
   "upstreamCommit": "07a0304",
@@ -109,23 +109,23 @@
     },
     {
       "path": "kit/.a365-kit/addons/add-mcp-server/references/dotnet-mcp-server.md",
-      "bytes": 3963,
-      "sha256": "86f4911875e434e1e821b8d384ef2daa0ab0ceeb08d3de0eaa64156247ebc370"
+      "bytes": 4128,
+      "sha256": "9cfc434f41a88dea320b1ccfb3f2eb4e2df08558040fae9bde8b1ee3fe049d8a"
     },
     {
       "path": "kit/.a365-kit/addons/add-mcp-server/references/nodejs-mcp-server.md",
-      "bytes": 3301,
-      "sha256": "859ddcad2bfb831073705fdd98d0cee97201dcfef85f0fd4bd2cddaa8dfeee65"
+      "bytes": 3929,
+      "sha256": "d97014cb256882b8ecbd4c7ceca89eebfeba6fbffe48dbc67252726df782e99d"
     },
     {
       "path": "kit/.a365-kit/addons/add-mcp-server/references/python-mcp-server.md",
-      "bytes": 6471,
-      "sha256": "6d08a944e61da9ccc7c7abe5526a221d2422d11fef968a45f23772582e4ea5ef"
+      "bytes": 7251,
+      "sha256": "155e591cc348bf76fbd8ede8b819c4a42cbd9ba275b62ce53f77f9636d023800"
     },
     {
       "path": "kit/.a365-kit/addons/add-mcp-server/SKILL.md",
-      "bytes": 9107,
-      "sha256": "d2d952c6973940c2a9c48612d206f80ccd2162c6d091f7024e7ab5a3e70840ad"
+      "bytes": 9324,
+      "sha256": "2e57a457b37ee46255fe5b9af6c0f5eacec1fae71073d972f21157065d670cc0"
     },
     {
       "path": "kit/.a365-kit/addons/add-messaging-endpoint/references/dotnet-messaging-endpoint.md",
@@ -280,7 +280,7 @@
     {
       "path": "kit/.a365-kit/KIT-VERSION.json",
       "bytes": 724,
-      "sha256": "3f08464385afe41fd1ff2581cf16e975a6753de20ca65cc4e28b58865cb96ea8"
+      "sha256": "e2e3d0c4ded59ac4e8fb394fa6b778d6b72830aae542864449923ac5a12c4e1f"
     },
     {
       "path": "kit/.a365-kit/lib/observability-consent.mjs",
@@ -299,8 +299,8 @@
     },
     {
       "path": "kit/.a365-kit/NOTICE.md",
-      "bytes": 33415,
-      "sha256": "eb66d79596f2e625754da2e86d3a4e24136270386469a56fce44e378a7cb503d"
+      "bytes": 35601,
+      "sha256": "bc43381a53dca729fc34d8f38a2acb4e9d5c62d4b32f9e9145f4267b53afc761"
     },
     {
       "path": "kit/.a365-kit/run-a365.mjs",
@@ -319,8 +319,13 @@
     },
     {
       "path": "kit/.a365-kit/shared/local-runtime-lessons.md",
-      "bytes": 10984,
-      "sha256": "79bb46ac0865ceab6eccae32b8f7447b67f0538e7ea9c9ff666aa2a822341739"
+      "bytes": 11261,
+      "sha256": "612a9a9fb7fcfb151035c08f21944b3c93526b74a460db75523c1b96bc0b81ab"
+    },
+    {
+      "path": "kit/.a365-kit/shared/mcp-server-health.md",
+      "bytes": 6845,
+      "sha256": "66ad2415d4dde5c7704597d7a0117b9491c323c2b163300fc8631f515fb55e5e"
     },
     {
       "path": "kit/.a365-kit/shared/observability-access-package.md",
@@ -359,18 +364,18 @@
     },
     {
       "path": "kit/.a365-kit/skills/add-workiq-tools/references/nodejs-workiq.md",
-      "bytes": 19405,
-      "sha256": "4093d504c1f90f176b73ccc095c072c39281435d02bb5f0d660829f0aec452c3"
+      "bytes": 20213,
+      "sha256": "9e1cbd6de8fc47523b1cd4772584a6f5696e890cc1c4394168ce8334afed0e60"
     },
     {
       "path": "kit/.a365-kit/skills/add-workiq-tools/references/python-workiq.md",
-      "bytes": 25259,
-      "sha256": "e15a0bef8aad8337577b6aa600cec1b24a8c887dd3fc41cc0b9880eadb3934e3"
+      "bytes": 26073,
+      "sha256": "5dd4e8ee50eb25ac58df59152c3e6c82b5463b69161b50447341875b0f522bf2"
     },
     {
       "path": "kit/.a365-kit/skills/add-workiq-tools/SKILL.md",
-      "bytes": 45879,
-      "sha256": "4fae4140a07f1e8af6a62ac291b304dfdf6390b93cf2e41f6402e194eb873036"
+      "bytes": 46749,
+      "sha256": "2cc2f19cb6244eae54ae50ccb945b888e1aba3bdc92da86e5f2e10d04d74a8df"
     },
     {
       "path": "kit/.a365-kit/skills/instrument-observability/references/dotnet-observability.md",
@@ -419,13 +424,13 @@
     },
     {
       "path": "kit/.a365-kit/skills/make-ai-teammate/references/python-ai-teammate.md",
-      "bytes": 47585,
-      "sha256": "e6f712de34d69c78c7538538e56dcc62ab7501d971dcbbb14077f29da57ff700"
+      "bytes": 48245,
+      "sha256": "b6989ab581990a1360bcf680a1ea5b88f999e9e5540cdb91f915236ae9c6c008"
     },
     {
       "path": "kit/.a365-kit/skills/make-ai-teammate/SKILL.md",
-      "bytes": 58044,
-      "sha256": "59068e24b81fd879223eea8497f0303c835a705802f0eb339a3128efd4362877"
+      "bytes": 58206,
+      "sha256": "c4d5947945af1bcb8bc41999663c986d5e3c6af6b2df522e8e6f2baed6ee1591"
     },
     {
       "path": "kit/.a365-kit/skills/purview-dlp-integration/assets/purview-s2s.ts",
@@ -569,23 +574,23 @@
     },
     {
       "path": "kit/.agents/skills/add-mcp-server/references/dotnet-mcp-server.md",
-      "bytes": 3963,
-      "sha256": "86f4911875e434e1e821b8d384ef2daa0ab0ceeb08d3de0eaa64156247ebc370"
+      "bytes": 4128,
+      "sha256": "9cfc434f41a88dea320b1ccfb3f2eb4e2df08558040fae9bde8b1ee3fe049d8a"
     },
     {
       "path": "kit/.agents/skills/add-mcp-server/references/nodejs-mcp-server.md",
-      "bytes": 3301,
-      "sha256": "859ddcad2bfb831073705fdd98d0cee97201dcfef85f0fd4bd2cddaa8dfeee65"
+      "bytes": 3929,
+      "sha256": "d97014cb256882b8ecbd4c7ceca89eebfeba6fbffe48dbc67252726df782e99d"
     },
     {
       "path": "kit/.agents/skills/add-mcp-server/references/python-mcp-server.md",
-      "bytes": 6471,
-      "sha256": "6d08a944e61da9ccc7c7abe5526a221d2422d11fef968a45f23772582e4ea5ef"
+      "bytes": 7251,
+      "sha256": "155e591cc348bf76fbd8ede8b819c4a42cbd9ba275b62ce53f77f9636d023800"
     },
     {
       "path": "kit/.agents/skills/add-mcp-server/SKILL.md",
-      "bytes": 9107,
-      "sha256": "d2d952c6973940c2a9c48612d206f80ccd2162c6d091f7024e7ab5a3e70840ad"
+      "bytes": 9324,
+      "sha256": "2e57a457b37ee46255fe5b9af6c0f5eacec1fae71073d972f21157065d670cc0"
     },
     {
       "path": "kit/.agents/skills/add-messaging-endpoint/references/dotnet-messaging-endpoint.md",
@@ -614,18 +619,18 @@
     },
     {
       "path": "kit/.agents/skills/add-workiq-tools/references/nodejs-workiq.md",
-      "bytes": 19405,
-      "sha256": "4093d504c1f90f176b73ccc095c072c39281435d02bb5f0d660829f0aec452c3"
+      "bytes": 20213,
+      "sha256": "9e1cbd6de8fc47523b1cd4772584a6f5696e890cc1c4394168ce8334afed0e60"
     },
     {
       "path": "kit/.agents/skills/add-workiq-tools/references/python-workiq.md",
-      "bytes": 25259,
-      "sha256": "e15a0bef8aad8337577b6aa600cec1b24a8c887dd3fc41cc0b9880eadb3934e3"
+      "bytes": 26073,
+      "sha256": "5dd4e8ee50eb25ac58df59152c3e6c82b5463b69161b50447341875b0f522bf2"
     },
     {
       "path": "kit/.agents/skills/add-workiq-tools/SKILL.md",
-      "bytes": 45879,
-      "sha256": "4fae4140a07f1e8af6a62ac291b304dfdf6390b93cf2e41f6402e194eb873036"
+      "bytes": 46749,
+      "sha256": "2cc2f19cb6244eae54ae50ccb945b888e1aba3bdc92da86e5f2e10d04d74a8df"
     },
     {
       "path": "kit/.agents/skills/grant-observability-access/SKILL.md",
@@ -679,13 +684,13 @@
     },
     {
       "path": "kit/.agents/skills/make-ai-teammate/references/python-ai-teammate.md",
-      "bytes": 47585,
-      "sha256": "e6f712de34d69c78c7538538e56dcc62ab7501d971dcbbb14077f29da57ff700"
+      "bytes": 48245,
+      "sha256": "b6989ab581990a1360bcf680a1ea5b88f999e9e5540cdb91f915236ae9c6c008"
     },
     {
       "path": "kit/.agents/skills/make-ai-teammate/SKILL.md",
-      "bytes": 58044,
-      "sha256": "59068e24b81fd879223eea8497f0303c835a705802f0eb339a3128efd4362877"
+      "bytes": 58206,
+      "sha256": "c4d5947945af1bcb8bc41999663c986d5e3c6af6b2df522e8e6f2baed6ee1591"
     },
     {
       "path": "kit/.agents/skills/purview-dlp-integration/assets/purview-s2s.ts",
@@ -849,23 +854,23 @@
     },
     {
       "path": "kit/.claude/skills/add-mcp-server/references/dotnet-mcp-server.md",
-      "bytes": 3963,
-      "sha256": "86f4911875e434e1e821b8d384ef2daa0ab0ceeb08d3de0eaa64156247ebc370"
+      "bytes": 4128,
+      "sha256": "9cfc434f41a88dea320b1ccfb3f2eb4e2df08558040fae9bde8b1ee3fe049d8a"
     },
     {
       "path": "kit/.claude/skills/add-mcp-server/references/nodejs-mcp-server.md",
-      "bytes": 3301,
-      "sha256": "859ddcad2bfb831073705fdd98d0cee97201dcfef85f0fd4bd2cddaa8dfeee65"
+      "bytes": 3929,
+      "sha256": "d97014cb256882b8ecbd4c7ceca89eebfeba6fbffe48dbc67252726df782e99d"
     },
     {
       "path": "kit/.claude/skills/add-mcp-server/references/python-mcp-server.md",
-      "bytes": 6471,
-      "sha256": "6d08a944e61da9ccc7c7abe5526a221d2422d11fef968a45f23772582e4ea5ef"
+      "bytes": 7251,
+      "sha256": "155e591cc348bf76fbd8ede8b819c4a42cbd9ba275b62ce53f77f9636d023800"
     },
     {
       "path": "kit/.claude/skills/add-mcp-server/SKILL.md",
-      "bytes": 9107,
-      "sha256": "d2d952c6973940c2a9c48612d206f80ccd2162c6d091f7024e7ab5a3e70840ad"
+      "bytes": 9324,
+      "sha256": "2e57a457b37ee46255fe5b9af6c0f5eacec1fae71073d972f21157065d670cc0"
     },
     {
       "path": "kit/.claude/skills/add-messaging-endpoint/references/dotnet-messaging-endpoint.md",
@@ -894,18 +899,18 @@
     },
     {
       "path": "kit/.claude/skills/add-workiq-tools/references/nodejs-workiq.md",
-      "bytes": 19405,
-      "sha256": "4093d504c1f90f176b73ccc095c072c39281435d02bb5f0d660829f0aec452c3"
+      "bytes": 20213,
+      "sha256": "9e1cbd6de8fc47523b1cd4772584a6f5696e890cc1c4394168ce8334afed0e60"
     },
     {
       "path": "kit/.claude/skills/add-workiq-tools/references/python-workiq.md",
-      "bytes": 25259,
-      "sha256": "e15a0bef8aad8337577b6aa600cec1b24a8c887dd3fc41cc0b9880eadb3934e3"
+      "bytes": 26073,
+      "sha256": "5dd4e8ee50eb25ac58df59152c3e6c82b5463b69161b50447341875b0f522bf2"
     },
     {
       "path": "kit/.claude/skills/add-workiq-tools/SKILL.md",
-      "bytes": 45879,
-      "sha256": "4fae4140a07f1e8af6a62ac291b304dfdf6390b93cf2e41f6402e194eb873036"
+      "bytes": 46749,
+      "sha256": "2cc2f19cb6244eae54ae50ccb945b888e1aba3bdc92da86e5f2e10d04d74a8df"
     },
     {
       "path": "kit/.claude/skills/grant-observability-access/SKILL.md",
@@ -959,13 +964,13 @@
     },
     {
       "path": "kit/.claude/skills/make-ai-teammate/references/python-ai-teammate.md",
-      "bytes": 47585,
-      "sha256": "e6f712de34d69c78c7538538e56dcc62ab7501d971dcbbb14077f29da57ff700"
+      "bytes": 48245,
+      "sha256": "b6989ab581990a1360bcf680a1ea5b88f999e9e5540cdb91f915236ae9c6c008"
     },
     {
       "path": "kit/.claude/skills/make-ai-teammate/SKILL.md",
-      "bytes": 58044,
-      "sha256": "59068e24b81fd879223eea8497f0303c835a705802f0eb339a3128efd4362877"
+      "bytes": 58206,
+      "sha256": "c4d5947945af1bcb8bc41999663c986d5e3c6af6b2df522e8e6f2baed6ee1591"
     },
     {
       "path": "kit/.claude/skills/purview-dlp-integration/assets/purview-s2s.ts",
@@ -1489,8 +1494,8 @@
     },
     {
       "path": "examples/python-teammate/README.md",
-      "bytes": 1985,
-      "sha256": "379b26caaf73584ba674419304a5389ff05f797c51c1bd72a270fb6043ca2b81"
+      "bytes": 2341,
+      "sha256": "cabb3cf1b2a85b4c7754d0f732738bf6ef14f43c5b2c8a5b70c029b9104af0a4"
     },
     {
       "path": "examples/python-teammate/requirements-lock.txt",
@@ -1599,18 +1604,18 @@
     },
     {
       "path": "README.md",
-      "bytes": 26175,
-      "sha256": "5450237f0073796018a3f9f09cce7c703c13c8c5349133fad022e1b235f62bd4"
+      "bytes": 26416,
+      "sha256": "fcde3c03f33a91d4dd29ffbfcd3dadd7338b5afc3a2dc81aec17ca5b630edb64"
     },
     {
       "path": "GUIDE.md",
-      "bytes": 30882,
-      "sha256": "fdb82a5340cd20b495be4538e07c3e81113129d08088e5f09c83e67a64ac9b47"
+      "bytes": 31159,
+      "sha256": "b8f65fb5a7d1b88db32e9afb6c323517fe2574516c17efc412f18895bb1a20f0"
     },
     {
       "path": "NOTICE.md",
-      "bytes": 33415,
-      "sha256": "eb66d79596f2e625754da2e86d3a4e24136270386469a56fce44e378a7cb503d"
+      "bytes": 35601,
+      "sha256": "bc43381a53dca729fc34d8f38a2acb4e9d5c62d4b32f9e9145f4267b53afc761"
     },
     {
       "path": "CONTRIBUTING.md",
