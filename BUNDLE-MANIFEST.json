@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "bundleVersion": "0.2.11",
-  "kitVersion": "0.2.11",
+  "bundleVersion": "0.2.12",
+  "kitVersion": "0.2.12",
   "upstreamRepo": "microsoft/agent365-skills",
   "upstreamVersion": "1.0.2",
   "upstreamCommit": "07a0304",
@@ -139,8 +139,8 @@
     },
     {
       "path": "kit/.a365-kit/addons/add-messaging-endpoint/references/python-messaging-endpoint.md",
-      "bytes": 22525,
-      "sha256": "9d7b4d7592cca97c021b16ef3ad002eb624de2a4436802bfa58cbe267295a0ae"
+      "bytes": 23098,
+      "sha256": "10221038c9a2c9fc4c3e77dfd311d59773c4a8bb17994628bf4672e1b56d89c4"
     },
     {
       "path": "kit/.a365-kit/addons/add-messaging-endpoint/SKILL.md",
@@ -280,7 +280,7 @@
     {
       "path": "kit/.a365-kit/KIT-VERSION.json",
       "bytes": 724,
-      "sha256": "e2e3d0c4ded59ac4e8fb394fa6b778d6b72830aae542864449923ac5a12c4e1f"
+      "sha256": "efdf85379fcdd866e45ab01390c66db91a8a2978cb8c972f4b6408cb95a2a424"
     },
     {
       "path": "kit/.a365-kit/lib/observability-consent.mjs",
@@ -299,8 +299,8 @@
     },
     {
       "path": "kit/.a365-kit/NOTICE.md",
-      "bytes": 35601,
-      "sha256": "bc43381a53dca729fc34d8f38a2acb4e9d5c62d4b32f9e9145f4267b53afc761"
+      "bytes": 37268,
+      "sha256": "25def8f665ef8fb6157f9b95e7f36c10e61b3f4ac3458e2314a28a22ce566d10"
     },
     {
       "path": "kit/.a365-kit/run-a365.mjs",
@@ -319,8 +319,8 @@
     },
     {
       "path": "kit/.a365-kit/shared/local-runtime-lessons.md",
-      "bytes": 11261,
-      "sha256": "612a9a9fb7fcfb151035c08f21944b3c93526b74a460db75523c1b96bc0b81ab"
+      "bytes": 11578,
+      "sha256": "8307dc91ec69d500188eb9fb7e6303b5b1b10e23d2d0d297484fd65f38374a55"
     },
     {
       "path": "kit/.a365-kit/shared/mcp-server-health.md",
@@ -336,6 +336,11 @@
       "path": "kit/.a365-kit/shared/purview-kit-notes.md",
       "bytes": 3400,
       "sha256": "00f32deb89e60ed1e6cf3964bfa8c9d12bc118c1100ac05c42d3b5b418f11f3d"
+    },
+    {
+      "path": "kit/.a365-kit/shared/turn-replies.md",
+      "bytes": 7216,
+      "sha256": "c3f36a793dfa24a1d8bb5b4a27987f8f3ecf8ab5d9568dfb7780e36e0f826038"
     },
     {
       "path": "kit/.a365-kit/skills/a365-code-validator/references/a365-code-validator.js",
@@ -409,13 +414,13 @@
     },
     {
       "path": "kit/.a365-kit/skills/make-ai-teammate/references/dotnet-ai-teammate.md",
-      "bytes": 45534,
-      "sha256": "b0b23cbd1d8197e9174fb487ef9555b44905cf78ce82c4cd4a12d6bd3696f398"
+      "bytes": 45566,
+      "sha256": "f648be081ed2d65ee16e0c778ec5af1f7468010f4638d5804127014062918ae0"
     },
     {
       "path": "kit/.a365-kit/skills/make-ai-teammate/references/nodejs-ai-teammate.md",
-      "bytes": 37759,
-      "sha256": "9ce91b36dd5a352a3591c14236ef11ad4831fe2e6f59bc2f35c78e1aebbc8f08"
+      "bytes": 37933,
+      "sha256": "8a7abefc1c601261e9680b299ea84626c41879393d69ea75492684961a0b3a9a"
     },
     {
       "path": "kit/.a365-kit/skills/make-ai-teammate/references/nodejs-notifications.md",
@@ -424,13 +429,13 @@
     },
     {
       "path": "kit/.a365-kit/skills/make-ai-teammate/references/python-ai-teammate.md",
-      "bytes": 48245,
-      "sha256": "b6989ab581990a1360bcf680a1ea5b88f999e9e5540cdb91f915236ae9c6c008"
+      "bytes": 48759,
+      "sha256": "52b38d727a6b279e35528bd7834bbf1d31464d426fd8a0935703b02e776865a3"
     },
     {
       "path": "kit/.a365-kit/skills/make-ai-teammate/SKILL.md",
-      "bytes": 58206,
-      "sha256": "c4d5947945af1bcb8bc41999663c986d5e3c6af6b2df522e8e6f2baed6ee1591"
+      "bytes": 58580,
+      "sha256": "7acbbbf1e2c9281b5e97ec2cfe808e1e99a638b0f0afd1156e446177303d6133"
     },
     {
       "path": "kit/.a365-kit/skills/purview-dlp-integration/assets/purview-s2s.ts",
@@ -604,8 +609,8 @@
     },
     {
       "path": "kit/.agents/skills/add-messaging-endpoint/references/python-messaging-endpoint.md",
-      "bytes": 22525,
-      "sha256": "9d7b4d7592cca97c021b16ef3ad002eb624de2a4436802bfa58cbe267295a0ae"
+      "bytes": 23098,
+      "sha256": "10221038c9a2c9fc4c3e77dfd311d59773c4a8bb17994628bf4672e1b56d89c4"
     },
     {
       "path": "kit/.agents/skills/add-messaging-endpoint/SKILL.md",
@@ -669,13 +674,13 @@
     },
     {
       "path": "kit/.agents/skills/make-ai-teammate/references/dotnet-ai-teammate.md",
-      "bytes": 45534,
-      "sha256": "b0b23cbd1d8197e9174fb487ef9555b44905cf78ce82c4cd4a12d6bd3696f398"
+      "bytes": 45566,
+      "sha256": "f648be081ed2d65ee16e0c778ec5af1f7468010f4638d5804127014062918ae0"
     },
     {
       "path": "kit/.agents/skills/make-ai-teammate/references/nodejs-ai-teammate.md",
-      "bytes": 37759,
-      "sha256": "9ce91b36dd5a352a3591c14236ef11ad4831fe2e6f59bc2f35c78e1aebbc8f08"
+      "bytes": 37933,
+      "sha256": "8a7abefc1c601261e9680b299ea84626c41879393d69ea75492684961a0b3a9a"
     },
     {
       "path": "kit/.agents/skills/make-ai-teammate/references/nodejs-notifications.md",
@@ -684,13 +689,13 @@
     },
     {
       "path": "kit/.agents/skills/make-ai-teammate/references/python-ai-teammate.md",
-      "bytes": 48245,
-      "sha256": "b6989ab581990a1360bcf680a1ea5b88f999e9e5540cdb91f915236ae9c6c008"
+      "bytes": 48759,
+      "sha256": "52b38d727a6b279e35528bd7834bbf1d31464d426fd8a0935703b02e776865a3"
     },
     {
       "path": "kit/.agents/skills/make-ai-teammate/SKILL.md",
-      "bytes": 58206,
-      "sha256": "c4d5947945af1bcb8bc41999663c986d5e3c6af6b2df522e8e6f2baed6ee1591"
+      "bytes": 58580,
+      "sha256": "7acbbbf1e2c9281b5e97ec2cfe808e1e99a638b0f0afd1156e446177303d6133"
     },
     {
       "path": "kit/.agents/skills/purview-dlp-integration/assets/purview-s2s.ts",
@@ -884,8 +889,8 @@
     },
     {
       "path": "kit/.claude/skills/add-messaging-endpoint/references/python-messaging-endpoint.md",
-      "bytes": 22525,
-      "sha256": "9d7b4d7592cca97c021b16ef3ad002eb624de2a4436802bfa58cbe267295a0ae"
+      "bytes": 23098,
+      "sha256": "10221038c9a2c9fc4c3e77dfd311d59773c4a8bb17994628bf4672e1b56d89c4"
     },
     {
       "path": "kit/.claude/skills/add-messaging-endpoint/SKILL.md",
@@ -949,13 +954,13 @@
     },
     {
       "path": "kit/.claude/skills/make-ai-teammate/references/dotnet-ai-teammate.md",
-      "bytes": 45534,
-      "sha256": "b0b23cbd1d8197e9174fb487ef9555b44905cf78ce82c4cd4a12d6bd3696f398"
+      "bytes": 45566,
+      "sha256": "f648be081ed2d65ee16e0c778ec5af1f7468010f4638d5804127014062918ae0"
     },
     {
       "path": "kit/.claude/skills/make-ai-teammate/references/nodejs-ai-teammate.md",
-      "bytes": 37759,
-      "sha256": "9ce91b36dd5a352a3591c14236ef11ad4831fe2e6f59bc2f35c78e1aebbc8f08"
+      "bytes": 37933,
+      "sha256": "8a7abefc1c601261e9680b299ea84626c41879393d69ea75492684961a0b3a9a"
     },
     {
       "path": "kit/.claude/skills/make-ai-teammate/references/nodejs-notifications.md",
@@ -964,13 +969,13 @@
     },
     {
       "path": "kit/.claude/skills/make-ai-teammate/references/python-ai-teammate.md",
-      "bytes": 48245,
-      "sha256": "b6989ab581990a1360bcf680a1ea5b88f999e9e5540cdb91f915236ae9c6c008"
+      "bytes": 48759,
+      "sha256": "52b38d727a6b279e35528bd7834bbf1d31464d426fd8a0935703b02e776865a3"
     },
     {
       "path": "kit/.claude/skills/make-ai-teammate/SKILL.md",
-      "bytes": 58206,
-      "sha256": "c4d5947945af1bcb8bc41999663c986d5e3c6af6b2df522e8e6f2baed6ee1591"
+      "bytes": 58580,
+      "sha256": "7acbbbf1e2c9281b5e97ec2cfe808e1e99a638b0f0afd1156e446177303d6133"
     },
     {
       "path": "kit/.claude/skills/purview-dlp-integration/assets/purview-s2s.ts",
@@ -1604,18 +1609,18 @@
     },
     {
       "path": "README.md",
-      "bytes": 26416,
-      "sha256": "fcde3c03f33a91d4dd29ffbfcd3dadd7338b5afc3a2dc81aec17ca5b630edb64"
+      "bytes": 26525,
+      "sha256": "974f76df0769bfbd4e898d97616d7a269079769ea18f71dd110a2d9ae589dc6b"
     },
     {
       "path": "GUIDE.md",
-      "bytes": 31159,
-      "sha256": "b8f65fb5a7d1b88db32e9afb6c323517fe2574516c17efc412f18895bb1a20f0"
+      "bytes": 31530,
+      "sha256": "e715a7b9e88a533531e360b8b1ffc164d7cd1c27636113c4f5bf3550239f03a6"
     },
     {
       "path": "NOTICE.md",
-      "bytes": 35601,
-      "sha256": "bc43381a53dca729fc34d8f38a2acb4e9d5c62d4b32f9e9145f4267b53afc761"
+      "bytes": 37268,
+      "sha256": "25def8f665ef8fb6157f9b95e7f36c10e61b3f4ac3458e2314a28a22ce566d10"
     },
     {
       "path": "CONTRIBUTING.md",

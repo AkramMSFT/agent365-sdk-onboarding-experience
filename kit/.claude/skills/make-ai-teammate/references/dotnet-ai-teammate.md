@@ -168,7 +168,7 @@ if (app.Services.GetService<IAgent>() is AgentApplication agentApp)
         try
         {
             await turnContext.SendActivityAsync(
-                $"Sorry — I hit an error processing that message. {exception.Message}",
+                TurnReplies.For(exception), // never the exception text; .a365-kit/shared/turn-replies.md
                 cancellationToken: cancellationToken);
         }
         catch (Exception sendErr)
@@ -685,7 +685,7 @@ if (app.Services.GetService<IAgent>() is AgentApplication agentApp)
         try
         {
             await turnContext.SendActivityAsync(
-                $"Sorry — I hit an error processing that message. {exception.Message}",
+                TurnReplies.For(exception), // never the exception text; .a365-kit/shared/turn-replies.md
                 cancellationToken: cancellationToken);
         }
         catch (Exception sendErr)

@@ -427,6 +427,7 @@ If `agentStack` is unrecognized, tell the user:
 TaskCreate: "Install required @microsoft/agents-* npm packages"
 TaskCreate: "Configure tsconfig.json for node16 module resolution"  [skip if already correct]
 TaskCreate: "Add src/index.ts — Express + CloudAdapter hosting"     [skip if hasHosting]
+TaskCreate: "Add src/turnReplies.ts: replies for refused or failed turns (.a365-kit/shared/turn-replies.md)"  [skip if exists]
 TaskCreate: "Add src/agent.ts — AgentApplication class"             [skip if hasAgentApp]
 TaskCreate: "Add src/client.ts — LLM client factory"               [skip if exists]
 TaskCreate: "Update .env / .env.example with A365 variables"
@@ -440,6 +441,7 @@ TaskCreate: "Register, publish, and deploy"
 ```
 TaskCreate: "Add Microsoft.Agents.A365.* NuGet packages"
 TaskCreate: "Update Program.cs — A365 services + /api/messages + /api/health"  [skip if hasHosting]
+TaskCreate: "Add TurnReplies.cs: replies for refused or failed turns (.a365-kit/shared/turn-replies.md)"  [skip if exists]
 TaskCreate: "Add Agent/MyAgent.cs — AgentApplication subclass"                  [skip if hasAgentApp]
 TaskCreate: "Update appsettings.json with A365 auth and connection config"
 TaskCreate: "Validate build (dotnet build)"
@@ -453,6 +455,7 @@ TaskCreate: "Register, publish, and deploy"
 TaskCreate: "Add microsoft_agents_a365_* to pyproject.toml"
 TaskCreate: "Add agent_interface.py"                                             [skip if exists]
 TaskCreate: "Add host_agent_server.py — aiohttp server + A365 routing"          [skip if hasHosting]
+TaskCreate: "Add turn_replies.py: replies for refused or failed turns (.a365-kit/shared/turn-replies.md)"  [skip if exists]
 TaskCreate: "Update agent.py — AgentInterface implementation"                   [skip if hasAgentApp]
 TaskCreate: "Update .env / .env.template with A365 variables"
 TaskCreate: "Validate setup (uv sync or pip install)"

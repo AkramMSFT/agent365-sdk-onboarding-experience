@@ -136,6 +136,10 @@ Do not edit SDK URL paths as a speculative workaround.
 - Never lend a local operator's tokens to arbitrary Teams users. The extended
   example is deliberately single-user. Multi-user hosting requires per-user auth.
 - Acknowledge trusted system lifecycle events without invoking the model/tools.
+- Never send exception text to the user. A model refusal or a content-filter block
+  is an answer: reply with a plain refusal. Anything else gets a short apology and
+  the details go to the log. Set the adapter's turn error hook as well, because the
+  Python SDK's default sends the raw error. See `turn-replies.md`.
 - Configure the tunnel port as HTTP for a plain-HTTP local host. Read the public
   URL from the actual tunnel output; do not derive it from the tunnel name.
 - Register the endpoint using the installed CLI's supported M365 path. An endpoint

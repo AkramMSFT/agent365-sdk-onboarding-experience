@@ -217,6 +217,12 @@ class MyAgent(AgentInterface):
         return None
 
     def _extract_result(self, result) -> str:
+        # Agent Framework returns empty text when the provider's output filter withholds
+        # the answer. Helper: .a365-kit/shared/turn-replies.md
+        if getattr(result, "finish_reason", None) == "content_filter":
+            from turn_replies import REFUSAL_REPLY
+
+            return REFUSAL_REPLY
         if isinstance(result, str):
             return result
         if hasattr(result, "content"):
@@ -248,6 +254,7 @@ from microsoft_agents.hosting.core import Authorization
 
 from aiohttp import web
 from microsoft_agents_hosting_aiohttp import CloudAdapter
+from turn_replies import send_turn_error  # .a365-kit/shared/turn-replies.md
 from microsoft_agents_hosting_core import ActivityTypes
 from microsoft_agents.hosting.core.authorization import MsalConnectionManager
 from microsoft_agents.activity import ChannelId   # ChannelId lives in activity, NOT notifications
@@ -342,6 +349,8 @@ class GenericAgentHost:
         # manager owns that.
         connection_manager = MsalConnectionManager.from_environment()
         self._adapter = CloudAdapter(connection_manager=connection_manager)
+        # The SDK's default hook sends the raw exception text to the user.
+        self._adapter.on_turn_error = send_turn_error
         self._setup_handlers()
 
         self._app = web.Application()

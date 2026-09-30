@@ -146,6 +146,7 @@ import {
 } from '@microsoft/agents-hosting';
 import express, { Response, Express } from 'express';
 import { agentApplication } from './agent';
+import { replyForError } from './turnReplies'; // .a365-kit/shared/turn-replies.md
 
 const isProduction =
   Boolean(process.env.WEBSITE_SITE_NAME) || process.env.NODE_ENV === 'production';
@@ -160,9 +161,8 @@ adapter.onTurnError = async (context, err) => {
   const msg = err instanceof Error ? err.stack ?? err.message : JSON.stringify(err);
   console.error('[onTurnError]', msg);
   try {
-    await context.sendActivity(
-      `Sorry — I hit an error processing that message. ${err instanceof Error ? err.message : ''}`
-    );
+    // The user gets a refusal or an apology, never the error text.
+    await context.sendActivity(replyForError(err));
   } catch (sendErr) {
     console.error('[onTurnError] sendActivity failed:', sendErr);
   }
@@ -263,6 +263,7 @@ import {
   createEmailResponseActivity,
 } from '@microsoft/agents-a365-notifications';
 import { Client, getClient } from './client';
+import { replyForError } from './turnReplies'; // .a365-kit/shared/turn-replies.md
 
 export class MyAgent extends AgentApplication<TurnState> {
   static authHandlerName = 'agentic';
@@ -337,8 +338,8 @@ export class MyAgent extends AgentApplication<TurnState> {
       await turnContext.sendActivity(response);
     } catch (error) {
       console.error('LLM query error:', error);
-      const err = error as any;
-      await turnContext.sendActivity(`Error: ${err.message || err}`);
+      // The user gets a refusal or an apology, never the error text.
+      await turnContext.sendActivity(replyForError(error));
     } finally {
       stopTypingLoop();
     }

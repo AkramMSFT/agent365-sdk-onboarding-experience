@@ -291,6 +291,16 @@ The OpenAI Agents SDK, in Python and Node.js, lists tools from every attached MC
 
 Google ADK 2.0 and later and the .NET tooling library already skip a failing server, so their paths are unchanged. The helpers were run against openai-agents 0.20.0, @openai/agents 0.17.0 and 0.18.0, and agent-framework-core 1.17.0, with local servers that answer tools/list with HTTP 403, answer with a JSON-RPC error, never answer, or refuse the connection. `build/test-mcp-server-health.mjs` runs them on every build.
 
+### 22. Refused prompts get a refusal, and errors never reach the user
+
+When a model refuses a prompt or a content filter blocks it, the SDKs raise an exception, and the generated hosts turned that into an error reply. The Python AI Teammate host never set a turn error hook, so the Python SDK's default sent `Exception caught : <error>` to the user; the Node.js and .NET hosts appended the exception message to their apology. A jailbreak or prompt-injection attempt, which is exactly when a refusal is expected, showed users an error. The kit adds reply helpers, kept in `.a365-kit/shared/turn-replies.md`, and changes:
+
+- `make-ai-teammate/references/python-ai-teammate.md`: the host sets the adapter's turn error hook to the helper, and the Agent Framework template answers with the refusal when the output filter returns empty text.
+- `make-ai-teammate/references/nodejs-ai-teammate.md` and `dotnet-ai-teammate.md`: the turn error handlers, and the Node.js agent's own message handler, send the helper's reply instead of the exception message.
+- `make-ai-teammate/SKILL.md`: one task per language to add the helper file.
+
+What each SDK raises was captured from openai-agents 0.20.0, agent-framework 1.17.0 with agent-framework-openai 1.14.2, @openai/agents 0.17.0 and 0.18.0, and Azure.AI.OpenAI 2.7.0-beta.2 with Microsoft.Extensions.AI.OpenAI, against a local endpoint answering with a filtered output, a refusal, Azure's prompt-shield error and an ordinary HTTP 400. `build/test-turn-replies.mjs` runs the helpers on every build and fails if a template sends exception text to the user.
+
 ---
 
 ## Kit add-ons: not Microsoft's
@@ -320,10 +330,10 @@ The September 2026 audit also re-verified the add-ons offline: every Python, Nod
 ## What is *not* changed
 
 - No phase ordering, decision matrix, or trigger phrases.
-- No code patterns in `references/` beyond the token-resolver fix in section 11, the SDK corrections itemised in section 18 and the MCP server check in section 21, all of which are asserted against upstream's text on every build.
+- No code patterns in `references/` beyond the token-resolver fix in section 11, the SDK corrections itemised in section 18, the MCP server check in section 21 and the turn replies in section 22, all of which are asserted against upstream's text on every build.
 - No skill logic beyond the exporter switch in section 10, which is applied to bring the Node.js and Python paths into line with what upstream's .NET path already does.
-- No validator check logic beyond the fixes in sections 8, 9, 11 to 17 and 19, and no code pattern beyond the token-resolver fix in section 11, the SDK corrections in section 18 and the MCP server check in section 21; the validators otherwise enforce exactly what upstream enforces.
-- Nothing added to the skills beyond the pointers in section 20 and the steps in section 21. The kit's own Purview, hosting and hardening content lives in the separately labelled add-ons above.
+- No validator check logic beyond the fixes in sections 8, 9, 11 to 17 and 19, and no code pattern beyond the token-resolver fix in section 11, the SDK corrections in section 18, the MCP server check in section 21 and the turn replies in section 22; the validators otherwise enforce exactly what upstream enforces.
+- Nothing added to the skills beyond the pointers in section 20 and the steps in sections 21 and 22. The kit's own Purview, hosting and hardening content lives in the separately labelled add-ons above.
 
 ## Reporting issues
 

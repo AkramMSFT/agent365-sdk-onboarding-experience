@@ -289,7 +289,7 @@ This is a repackage, not a fork. The build clones upstream fresh on every run an
 Changes fall into two groups, both itemised in [`NOTICE.md`](NOTICE.md):
 
 - **Packaging.** Path tokens, hook commands, the plugin command namespace, and a guard that would otherwise disable itself outside a plugin install. Mechanical, no behaviour change.
-- **Defects found while onboarding real agents.** Mostly in the observability path, where several independent faults each left an agent tracing every turn and exporting none of it. Also in the Work IQ wiring, where one MCP server that failed took every tool down with it. Every one is documented with the failure it causes and upstream's own justification for the fix.
+- **Defects found while onboarding real agents.** Mostly in the observability path, where several independent faults each left an agent tracing every turn and exporting none of it. Also in the Work IQ wiring, where one MCP server that failed took every tool down with it, and in the hosts, which answered a refused prompt with an error, sometimes including the raw exception text. Every one is documented with the failure it causes and upstream's own justification for the fix.
 
 Problems with what the skills *do* belong upstream at [microsoft/agent365-skills](https://github.com/microsoft/agent365-skills/issues). Problems with the packaging, launchers, prerequisite checker or build belong here.
 

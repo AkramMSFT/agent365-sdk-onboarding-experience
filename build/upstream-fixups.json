@@ -663,5 +663,82 @@
     "find": "skip the wiring step if already present.\n",
     "replace": "skip the wiring step if already present. If the wiring is there but an OpenAI Agents SDK or Agent Framework agent has no MCP server health check (`healthy_mcp_agent`, `healthy_mcp_tools` or `healthyMcpAgent`), add just the check from `.a365-kit/shared/mcp-server-health.md`.\n",
     "expectedCount": 1
+  },
+  {
+    "id": "skills.make-ai-teammate.references.python-ai-teammate.md#r1",
+    "path": "skills\\make-ai-teammate\\references\\python-ai-teammate.md",
+    "find": "from microsoft_agents_hosting_aiohttp import CloudAdapter\n",
+    "replace": "from microsoft_agents_hosting_aiohttp import CloudAdapter\nfrom turn_replies import send_turn_error  # .a365-kit/shared/turn-replies.md\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.make-ai-teammate.references.python-ai-teammate.md#r2",
+    "path": "skills\\make-ai-teammate\\references\\python-ai-teammate.md",
+    "find": "        self._adapter = CloudAdapter(connection_manager=connection_manager)\n        self._setup_handlers()\n",
+    "replace": "        self._adapter = CloudAdapter(connection_manager=connection_manager)\n        # The SDK's default hook sends the raw exception text to the user.\n        self._adapter.on_turn_error = send_turn_error\n        self._setup_handlers()\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.make-ai-teammate.references.python-ai-teammate.md#r3",
+    "path": "skills\\make-ai-teammate\\references\\python-ai-teammate.md",
+    "find": "    def _extract_result(self, result) -> str:\n        if isinstance(result, str):\n            return result\n",
+    "replace": "    def _extract_result(self, result) -> str:\n        # Agent Framework returns empty text when the provider's output filter withholds\n        # the answer. Helper: .a365-kit/shared/turn-replies.md\n        if getattr(result, \"finish_reason\", None) == \"content_filter\":\n            from turn_replies import REFUSAL_REPLY\n\n            return REFUSAL_REPLY\n        if isinstance(result, str):\n            return result\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.make-ai-teammate.references.nodejs-ai-teammate.md#r1",
+    "path": "skills\\make-ai-teammate\\references\\nodejs-ai-teammate.md",
+    "find": "import { agentApplication } from './agent';\n",
+    "replace": "import { agentApplication } from './agent';\nimport { replyForError } from './turnReplies'; // .a365-kit/shared/turn-replies.md\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.make-ai-teammate.references.nodejs-ai-teammate.md#r2",
+    "path": "skills\\make-ai-teammate\\references\\nodejs-ai-teammate.md",
+    "find": "    await context.sendActivity(\n      `Sorry — I hit an error processing that message. ${err instanceof Error ? err.message : ''}`\n    );\n",
+    "replace": "    // The user gets a refusal or an apology, never the error text.\n    await context.sendActivity(replyForError(err));\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.make-ai-teammate.references.dotnet-ai-teammate.md#r1",
+    "path": "skills\\make-ai-teammate\\references\\dotnet-ai-teammate.md",
+    "find": "                $\"Sorry — I hit an error processing that message. {exception.Message}\",\n",
+    "replace": "                TurnReplies.For(exception), // never the exception text; .a365-kit/shared/turn-replies.md\n",
+    "expectedCount": 2
+  },
+  {
+    "id": "skills.make-ai-teammate.SKILL.md#r1",
+    "path": "skills\\make-ai-teammate\\SKILL.md",
+    "find": "TaskCreate: \"Add src/index.ts — Express + CloudAdapter hosting\"     [skip if hasHosting]\n",
+    "replace": "TaskCreate: \"Add src/index.ts — Express + CloudAdapter hosting\"     [skip if hasHosting]\nTaskCreate: \"Add src/turnReplies.ts: replies for refused or failed turns (.a365-kit/shared/turn-replies.md)\"  [skip if exists]\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.make-ai-teammate.SKILL.md#r2",
+    "path": "skills\\make-ai-teammate\\SKILL.md",
+    "find": "TaskCreate: \"Update Program.cs — A365 services + /api/messages + /api/health\"  [skip if hasHosting]\n",
+    "replace": "TaskCreate: \"Update Program.cs — A365 services + /api/messages + /api/health\"  [skip if hasHosting]\nTaskCreate: \"Add TurnReplies.cs: replies for refused or failed turns (.a365-kit/shared/turn-replies.md)\"  [skip if exists]\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.make-ai-teammate.SKILL.md#r3",
+    "path": "skills\\make-ai-teammate\\SKILL.md",
+    "find": "TaskCreate: \"Add host_agent_server.py — aiohttp server + A365 routing\"          [skip if hasHosting]\n",
+    "replace": "TaskCreate: \"Add host_agent_server.py — aiohttp server + A365 routing\"          [skip if hasHosting]\nTaskCreate: \"Add turn_replies.py: replies for refused or failed turns (.a365-kit/shared/turn-replies.md)\"  [skip if exists]\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.make-ai-teammate.references.nodejs-ai-teammate.md#r3",
+    "path": "skills\\make-ai-teammate\\references\\nodejs-ai-teammate.md",
+    "find": "import { Client, getClient } from './client';\n",
+    "replace": "import { Client, getClient } from './client';\nimport { replyForError } from './turnReplies'; // .a365-kit/shared/turn-replies.md\n",
+    "expectedCount": 1
+  },
+  {
+    "id": "skills.make-ai-teammate.references.nodejs-ai-teammate.md#r4",
+    "path": "skills\\make-ai-teammate\\references\\nodejs-ai-teammate.md",
+    "find": "      const err = error as any;\n      await turnContext.sendActivity(`Error: ${err.message || err}`);\n",
+    "replace": "      // The user gets a refusal or an apology, never the error text.\n      await turnContext.sendActivity(replyForError(error));\n",
+    "expectedCount": 1
   }
 ]

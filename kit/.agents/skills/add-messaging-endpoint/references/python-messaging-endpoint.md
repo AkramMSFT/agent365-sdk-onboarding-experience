@@ -29,7 +29,13 @@ microsoft-agents-authentication-msal>=1.6.0
 
 ## Files
 
-Three new files. **Do not edit the agent module the onboarding skills produced** (`src/agent.py` in the verified project); import it.
+Four new files. **Do not edit the agent module the onboarding skills produced** (`src/agent.py` in the verified project); import it.
+
+### `turn_replies.py` (project root)
+
+Copy the Python helper from `.a365-kit/shared/turn-replies.md`. The host below sends its
+replies when a turn fails, so a refused or filtered prompt gets a refusal and any other error
+gets an apology, never the exception text.
 
 ### `agent_interface.py` (project root)
 
@@ -155,6 +161,7 @@ from microsoft.opentelemetry.a365.core import AgentDetails, CallerDetails, Chann
 from microsoft.opentelemetry.a365.core.middleware.baggage_builder import BaggageBuilder
 from microsoft.opentelemetry.a365.hosting import ObservabilityHostingManager, ObservabilityHostingOptions
 from agent_interface import AgentInterface
+from turn_replies import reply_for_error, send_turn_error
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
@@ -280,9 +287,9 @@ class GenericAgentHost:
                     reply = await self._agent.process_user_message(text, self._authorization, AUTH_HANDLER_NAME or None, context)
                     scope.record_output_messages([reply])
             await context.send_activity(reply)
-        except Exception:
+        except Exception as error:
             logger.exception("turn failed")
-            await context.send_activity("Sorry - I hit an error working that out. Please try again.")
+            await context.send_activity(reply_for_error(error))
         finally:
             typing = False
             task.cancel()
@@ -296,6 +303,8 @@ class GenericAgentHost:
             cfg = load_configuration_from_env(os.environ)        # CONNECTIONS__* / CONNECTIONSMAP__*
             cm = MsalConnectionManager(**cfg)
             self._adapter = CloudAdapter(connection_manager=cm)
+            # The SDK's default hook sends the raw exception text to the user.
+            self._adapter.on_turn_error = send_turn_error
             ObservabilityHostingManager.configure(self._adapter.middleware_set, ObservabilityHostingOptions(enable_baggage=True))
             _patch_a365_middleware_arity(self._adapter.middleware_set)
             self._app = AgentApplication[TurnState](
@@ -416,7 +425,9 @@ With both fixes in place the tools attach, and the agent can still answer *"I'm 
 
 ### Not every server will be healthy
 
-On the verified tenant seven of nine attached; `mcp_PlannerServer` returned `404` and `mcp_WordServer` `403`. That is per-tenant provisioning, not a code fault. The `400` and `405` responses in the log are part of the normal MCP handshake — judge success by the `Attached N WorkIQ MCP server(s)` line, not by absence of non-200s.
+On the verified tenant seven of nine attached; `mcp_PlannerServer` returned `404` and `mcp_WordServer` `403`. That is per-tenant provisioning, not a code fault. The `400` and `405` responses in the log are part of the normal MCP handshake. Judge success by the `Attached N WorkIQ MCP server(s)` line, not by absence of non-200s. A
+server that fails during a turn still fails the whole run unless the per-server check from
+`.a365-kit/shared/mcp-server-health.md` is in place.
 
 ## Gotchas seen on the verified run
 

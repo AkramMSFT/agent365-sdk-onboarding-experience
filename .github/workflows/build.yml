@@ -107,6 +107,9 @@ jobs:
       - name: MCP server health helper tests
         run: node --test build/test-mcp-server-health.mjs
 
+      - name: Turn reply helper tests
+        run: node --test build/test-turn-replies.mjs
+
       - name: Workspace tool copies the kit and an example
         shell: pwsh
         run: |
