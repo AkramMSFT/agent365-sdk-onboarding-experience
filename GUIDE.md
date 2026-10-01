@@ -141,7 +141,7 @@ devtunnel user login
 
 > Starting from one of the repository's samples instead of your own agent? Use the workspace tool described in the README's *Start from a sample instead*; it places the kit for you. Then continue from Step 2 in that directory.
 
-> **Do not use GitHub's green Code → Download ZIP button.** That gives you
+> **Do not use GitHub's green Code > Download ZIP button.** That gives you
 > `agent365-sdk-onboarding-experience-main.zip`, which is the whole *repository* inside a wrapper
 > folder. Extracting it puts the skills where no CLI looks, and the failure is silent: the
 > extraction succeeds and then your CLI finds no skills. You want the **release asset**,
@@ -186,8 +186,8 @@ The archive has no wrapper directory, so extracting in place gives you:
 ```
 your-agent-project/
   .a365-kit/          skills, add-ons, validators, prerequisite doctor
-  .claude/skills/     discovery copy — Claude Code
-  .agents/skills/     discovery copy — Copilot, Cursor, Codex, Gemini, Amp, Cline, …
+  .claude/skills/     discovery copy for Claude Code
+  .agents/skills/     discovery copy for Copilot, Cursor, Codex, Gemini, Amp, Cline and others
   agent365-kit.ps1    launcher (Windows)
   agent365-kit.sh     launcher (macOS / Linux)
   src/  ...           your agent, already here
@@ -244,13 +244,13 @@ This is the step that puts the agent in the Agent 365 registry and gives it an E
 **Launch your CLI from the project folder** and give it the trigger phrase. Pick your CLI:
 
 ```bash
-# GitHub Copilot CLI — interactive, so you approve each action
+# GitHub Copilot CLI: interactive, so you approve each action
 copilot -i "Onboard this agent to Agent 365."
 
 # Claude Code
 claude "Onboard this agent to Agent 365."
 
-# Cursor / Codex / Gemini CLI — open the project and type the phrase in chat:
+# Cursor / Codex / Gemini CLI: open the project and type the phrase in chat:
 #   Onboard this agent to Agent 365.
 ```
 
@@ -474,11 +474,11 @@ This writes `manifest/manifest.json` and `manifest/manifest.zip`. Edit `name.sho
 
 Portal only; there is no CLI upload API. The roles that can manage agents in the admin center are **AI Administrator** and **Global Administrator**; older guidance naming Teams Administrator alone is out of date.
 
-1. In **Microsoft 365 admin center → Agents → All agents → Upload custom agent**, upload `manifest/manifest.zip`.
+1. In **Microsoft 365 admin center > Agents > All agents > Upload custom agent**, upload `manifest/manifest.zip`.
 2. **Activate**: scope the audience (start with yourself) and grant the requested permissions.
 3. **Create instance**. For an AI Teammate this mints the agentic user.
 
-User-driven alternative if you lack the Teams Admin role: sideload the same zip via **Teams → Apps → Manage your apps → Upload a custom app**, then **Request Instance**; an admin approves at `admin.cloud.microsoft/#/agents/all/requested`.
+User-driven alternative if you lack the Teams Admin role: sideload the same zip via **Teams > Apps > Manage your apps > Upload a custom app**, then **Request Instance**; an admin approves at `admin.cloud.microsoft/#/agents/all/requested`.
 
 Provisioning is asynchronous and takes a few minutes, occasionally longer. If **Request Instance** is disabled, Agent 365 Frontier is not enabled on the tenant.
 
