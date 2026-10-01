@@ -76,6 +76,7 @@ async function run(argv, graph, extra = {}) {
     log: s => out.push(s), err: s => errs.push(s),
     interactive: extra.interactive ?? false,
     prompt: async () => extra.answer ?? false,
+    sleep: async () => {},
   });
   return { code, out: out.join('\n'), err: errs.join('\n') };
 }
@@ -197,6 +198,58 @@ test('print-commands calls nothing and prints both hand-offs', async () => {
   assert.match(r.out, /adminconsent/);
   assert.match(r.out, /Connect-MgGraph -TenantId '11111111/);
   assert.equal((r.out.match(/New-MgServicePrincipalAppRoleAssignment/g) ?? []).length, 2);
+});
+
+test('print-commands looks up the blueprint by appId when its object id is unknown', async () => {
+  const saved = configs['a365.generated.config.json'];
+  configs['a365.generated.config.json'] = { agentBlueprintId: BP_APP, agenticAppId: ID_SP };
+  try {
+    const r = await run(['--print-commands', '--principals', 'blueprint'], null);
+    assert.equal(r.code, EXIT.ok);
+    assert.match(r.out, new RegExp(`\\$blueprintSp = Get-MgServicePrincipal -Filter "appId eq '${BP_APP}'"`));
+    assert.match(r.out, /-ServicePrincipalId \$blueprintSp\.Id -PrincipalId \$blueprintSp\.Id/);
+  } finally { configs['a365.generated.config.json'] = saved; }
+});
+
+test('print-commands says why there is no consent link when the blueprint appId is unknown', async () => {
+  const saved = configs['a365.generated.config.json'];
+  configs['a365.generated.config.json'] = { agentBlueprintServicePrincipalObjectId: BP_SP, agenticAppId: ID_SP };
+  try {
+    const r = await run(['--print-commands'], null);
+    assert.equal(r.code, EXIT.ok);
+    assert.doesNotMatch(r.out, /adminconsent/);
+    assert.match(r.out, /blueprint appId is unknown/);
+  } finally { configs['a365.generated.config.json'] = saved; }
+});
+
+test('the suggested grant command keeps the options the check was given', async () => {
+  const r = await run(['--check', '--tenant', TENANT, '--config-dir', 'my agent'], fakeGraph());
+  assert.equal(r.code, EXIT.missing);
+  assert.match(r.out, new RegExp(`--grant --principals identity --config-dir "my agent" --tenant ${TENANT}$`, 'm'));
+});
+
+test('a grant that is not visible at first is re-read before it is reported', async () => {
+  const g = fakeGraph();
+  let stale = 1;
+  const fetch = async (url, init = {}) => {
+    const read = (init.method ?? 'GET') === 'GET' && url.includes('/appRoleAssignments');
+    if (read && g.writes.length && stale-- > 0) return { ok: true, status: 200, text: async () => '{"value":[]}' };
+    return g.fetch(url, init);
+  };
+  const r = await run(['--grant', '--yes', '--no-delegated'], { fetch });
+  assert.equal(r.code, EXIT.ok, r.err);
+});
+
+test('a grant that never becomes visible says so instead of reporting a failure', async () => {
+  const g = fakeGraph();
+  const fetch = async (url, init = {}) => {
+    const read = (init.method ?? 'GET') === 'GET' && url.includes('/appRoleAssignments');
+    return read && g.writes.length ? { ok: true, status: 200, text: async () => '{"value":[]}' } : g.fetch(url, init);
+  };
+  const r = await run(['--grant', '--yes', '--no-delegated'], { fetch });
+  assert.equal(r.code, EXIT.grantFailed);
+  assert.match(r.err, /accepted every grant, but they are not visible yet/);
+  assert.doesNotMatch(r.err, /Could not grant/);
 });
 
 test('a project without a tenant id uses the tenant az is signed in to', async () => {

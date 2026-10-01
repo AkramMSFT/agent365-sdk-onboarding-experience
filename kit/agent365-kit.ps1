@@ -105,32 +105,85 @@ function Write-KitText([string] $Path, [string] $Text, [switch] $Append) {
     if ($Append) { [IO.File]::AppendAllText($Path, $Text, $utf8) } else { [IO.File]::WriteAllText($Path, $Text, $utf8) }
 }
 function ConvertFrom-KitJson([string] $Json) {
-    if ($PSVersionTable.PSVersion.Major -ge 7) { return ,($Json | ConvertFrom-Json -AsHashtable -NoEnumerate) }
+    if ($PSVersionTable.PSVersion.Major -ge 7) {
+        # PowerShell 7.5+ can keep ISO date strings as text instead of converting them to DateTime.
+        $dates = @{}
+        if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey('DateKind')) { $dates.DateKind = 'String' }
+        return ,($Json | ConvertFrom-Json -AsHashtable -NoEnumerate @dates)
+    }
     Add-Type -AssemblyName System.Web.Extensions
     $serializer = [System.Web.Script.Serialization.JavaScriptSerializer]::new()
     $serializer.MaxJsonLength = [int]::MaxValue
     return ,$serializer.DeserializeObject($Json)
 }
 
+# Writes what JSON.stringify(value, null, 2) writes, so a365-kit.config.json is byte-identical
+# whichever launcher saved it. ConvertTo-Json indents differently in 5.1 and 7.
+function ConvertTo-KitJson($Value, [string] $Indent = '') {
+    $next = $Indent + '  '
+    if ($null -eq $Value) { return 'null' }
+    if ($Value -is [bool]) { return $(if ($Value) { 'true' } else { 'false' }) }
+    if ($Value -is [string]) {
+        # Switch on the code: string comparison under ICU treats control characters as equal.
+        return '"' + [regex]::Replace($Value, '[\x00-\x1f"\\]', {
+            param($m)
+            $code = [int][char] $m.Value
+            switch ($code) {
+                34 { '\"' } 92 { '\\' } 8 { '\b' } 12 { '\f' } 10 { '\n' } 13 { '\r' } 9 { '\t' }
+                default { '\u{0:x4}' -f $code }
+            }
+        }) + '"'
+    }
+    if ($Value -is [System.Collections.IDictionary]) {
+        if ($Value.Count -eq 0) { return '{}' }
+        # JavaScript lists array-index keys first, in numeric order, then the rest as parsed.
+        $index = { $_ -match '^(0|[1-9][0-9]{0,9})$' -and [long] $_ -lt 4294967295 }
+        $keys = @($Value.Keys | Where-Object $index | Sort-Object { [long] $_ }) + @($Value.Keys | Where-Object { -not (& $index) })
+        $items = foreach ($key in $keys) { $next + (ConvertTo-KitJson ([string] $key)) + ': ' + (ConvertTo-KitJson $Value[$key] $next) }
+        return "{`n" + ($items -join ",`n") + "`n$Indent}"
+    }
+    if ($Value -is [System.Collections.IList]) {
+        if ($Value.Count -eq 0) { return '[]' }
+        $items = foreach ($item in $Value) { $next + (ConvertTo-KitJson $item $next) }
+        return "[`n" + ($items -join ",`n") + "`n$Indent]"
+    }
+    if ($Value -isnot [System.Numerics.BigInteger] -and [int][Type]::GetTypeCode($Value.GetType()) -notin 5..15) {
+        return ($Value | ConvertTo-Json -Compress)
+    }
+    # JSON numbers are doubles in JavaScript: shortest round-trip digits, exponent outside 1e-7..1e21.
+    # Integers and decimals go through their digits because a direct cast can round differently.
+    $inv = [Globalization.CultureInfo]::InvariantCulture
+    $d = if ($Value -is [double] -or $Value -is [float]) { [double] $Value } else { [double]::Parse([Convert]::ToString($Value, $inv), $inv) }
+    if ([double]::IsNaN($d) -or [double]::IsInfinity($d)) { return 'null' }
+    if ($d -eq 0) { return '0' }
+    $back = 0.0
+    for ($p = 0; $p -lt 17; $p++) {
+        $e = $d.ToString("E$p", $inv)
+        if ([double]::TryParse($e, [Globalization.NumberStyles]::Float, $inv, [ref] $back) -and $back -eq $d) { break }
+    }
+    $null = $e -match '^(-?)(\d)\.?(\d*)E([-+]\d+)$'
+    $digits = ($Matches[2] + $Matches[3]).TrimEnd('0'); $k = $digits.Length; $n = [int] $Matches[4] + 1
+    $text = if ($k -le $n -and $n -le 21) { $digits + ('0' * ($n - $k)) }
+        elseif ($n -gt 0 -and $n -le 21) { $digits.Insert($n, '.') }
+        elseif ($n -gt -6 -and $n -le 0) { '0.' + ('0' * (-$n)) + $digits }
+        else { $digits.Substring(0, 1) + $(if ($k -gt 1) { '.' + $digits.Substring(1) }) + 'e' + $(if ($n -gt 0) { '+' }) + ($n - 1) }
+    return $Matches[1] + $text
+}
+
 function Get-UpdateSource {
     if ($UpdateFrom) { return @{ Value = $UpdateFrom; Origin = '-UpdateFrom' } }
     if ($env:A365_KIT_UPDATE_SOURCE) { return @{ Value = $env:A365_KIT_UPDATE_SOURCE; Origin = 'A365_KIT_UPDATE_SOURCE' } }
-    if (Test-Path -LiteralPath $KitConfigPath) {
+    foreach ($file in @{ Path = $KitConfigPath; Origin = 'a365-kit.config.json' },
+                      @{ Path = (Join-Path $KitRoot '.a365-kit\KIT-VERSION.json'); Origin = 'kit build default' }) {
+        if (-not (Test-Path -LiteralPath $file.Path)) { continue }
         try {
-            $c = ConvertFrom-KitJson (Read-KitText $KitConfigPath)
+            $c = ConvertFrom-KitJson (Read-KitText $file.Path)
             if ($c -is [System.Collections.IDictionary] -and $c['updateSource'] -is [string] -and -not [string]::IsNullOrWhiteSpace($c['updateSource'])) {
-                return @{ Value = $c['updateSource']; Origin = 'a365-kit.config.json' }
+                return @{ Value = $c['updateSource']; Origin = $file.Origin }
             }
-        } catch { Write-Warn "a365-kit.config.json is not valid JSON -- ignoring it" }
-    }
-    $m = Join-Path $KitRoot '.a365-kit\KIT-VERSION.json'
-    if (Test-Path -LiteralPath $m) {
-        try {
-            $mv = ConvertFrom-KitJson (Read-KitText $m)
-            if ($mv -is [System.Collections.IDictionary] -and $mv['updateSource'] -is [string] -and -not [string]::IsNullOrWhiteSpace($mv['updateSource'])) {
-                return @{ Value = $mv['updateSource']; Origin = 'kit build default' }
-            }
-        } catch { }
+        } catch {
+            if ($file.Path -eq $KitConfigPath) { Write-Warn "a365-kit.config.json is not valid JSON -- ignoring it" }
+        }
     }
     return @{ Value = $PublicSource; Origin = 'public GitHub release' }
 }
@@ -151,7 +204,7 @@ if ($PSBoundParameters.ContainsKey('SetUpdateSource')) {
         $cfg['updateSource'] = $SetUpdateSource
         Write-Ok "Project update source set to: $SetUpdateSource"
     }
-    Write-KitText $KitConfigPath (($cfg | ConvertTo-Json -Depth 100 -WarningAction Stop) + "`n")
+    Write-KitText $KitConfigPath ((ConvertTo-KitJson $cfg) + "`n")
     Write-Note 'Written to a365-kit.config.json -- commit it so your whole team updates from the same place.'
     $r = Get-UpdateSource
     Write-Note "-Update will now use: $($r.Value)  [$($r.Origin)]"
@@ -162,6 +215,8 @@ if ($PSBoundParameters.ContainsKey('SetUpdateSource')) {
 # Skill folders to replace come from both the old and the new manifest, so a skill
 # that upstream dropped is removed rather than left behind.
 if ($Update) {
+    # Progress redraw makes Invoke-WebRequest and Expand-Archive many times slower in 5.1.
+    $ProgressPreference = 'SilentlyContinue'
     Write-Head 'Updating the kit'
     $resolved = Get-UpdateSource
     $UpdateFrom = $resolved.Value
@@ -192,9 +247,15 @@ if ($Update) {
         return $data
     }
 
+    # OneDrive Files On-Demand marks ordinary folders and files as reparse points too,
+    # so only symbolic links and junctions count as links.
+    function Test-KitLink($Item) {
+        ($Item.Attributes -band [IO.FileAttributes]::ReparsePoint) -and $Item.LinkType -in 'SymbolicLink', 'Junction'
+    }
+
     function Assert-UpdatePath([string] $Relative, [switch] $Directory) {
         $item = Get-Item -LiteralPath (Join-Path $KitRoot $Relative) -Force -ErrorAction SilentlyContinue
-        if ($item -and ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        if ($item -and (Test-KitLink $item)) {
             throw "Refusing to replace a linked project path: $Relative"
         }
         if ($item -and $Directory -and -not $item.PSIsContainer) {
@@ -212,6 +273,11 @@ if ($Update) {
     try {
         if ($UpdateFrom -match '^https?://') {
             Write-Note "Downloading $UpdateFrom"
+            # Windows PowerShell 5.1 can default to TLS 1.0/1.1; SystemDefault (0) is left to the OS.
+            $protocols = [Net.ServicePointManager]::SecurityProtocol
+            if ([int] $protocols -ne 0) {
+                [Net.ServicePointManager]::SecurityProtocol = $protocols -bor [Net.SecurityProtocolType]::Tls12
+            }
             Invoke-WebRequest -Uri $UpdateFrom -OutFile $zip -UseBasicParsing
         } else {
             if (-not (Test-Path -LiteralPath $UpdateFrom -PathType Leaf)) { throw "Not found: $UpdateFrom" }
@@ -224,9 +290,10 @@ if ($Update) {
         try {
             $entries = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
             foreach ($entry in $archive.Entries) {
-                $name = $entry.FullName.Replace('\', '/').TrimEnd('/')
-                if (-not $name -or $name.StartsWith('/') -or $name.Contains(':') -or
-                    ($name.Split('/') | Where-Object { $_ -in @('', '.', '..') }) -or
+                $name = $entry.FullName.Replace('\', '/') -replace '/$'
+                # An empty, '.' or '..' segment; this also rejects an empty or rooted name. Windows
+                # drops a trailing dot or space, which would merge two names into one file.
+                if ($name -match '(^|/)\.{0,2}(/|$)' -or $name -match '[. ](/|$)' -or $name.Contains(':') -or
                     -not $entries.Add($name) -or
                     (($entry.ExternalAttributes -shr 16) -band 0xf000) -eq 0xa000) {
                     throw "Unsafe or duplicate archive path: $($entry.FullName)"
@@ -236,7 +303,7 @@ if ($Update) {
         $new = Join-Path $stage 'new'
         Expand-Archive -LiteralPath $zip -DestinationPath $new -Force
         foreach ($item in Get-ChildItem -LiteralPath $new -Recurse -Force) {
-            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "Linked archive entry: $($item.FullName)" }
+            if (Test-KitLink $item) { throw "Linked archive entry: $($item.FullName)" }
         }
         $manifestPath = Join-Path $new '.a365-kit\KIT-VERSION.json'
         $newManifest = Read-KitManifest $manifestPath
@@ -470,11 +537,13 @@ if ($WireClaudeHook) {
 
 # Not named $Args: that automatic variable breaks parameter binding, so `& gh @Args`
 # would run gh with no arguments, print help and exit 0, and every probe would pass.
+# 'Continue' because 5.1 turns redirected native stderr into error records, which 'Stop'
+# makes terminating, so a probe that only writes a notice to stderr would fail.
 function Test-Cli { param([string] $Exe, [string[]] $Arguments)
-    try {
-        & $Exe @Arguments *> $null
-        return ($LASTEXITCODE -eq 0)
-    } catch { return $false }
+    $ErrorActionPreference = 'Continue'
+    $global:LASTEXITCODE = 1
+    try { & $Exe @Arguments *> $null } catch { return $false }
+    return ($LASTEXITCODE -eq 0)
 }
 
 $hasClaude = [bool](Get-Command claude -ErrorAction SilentlyContinue)

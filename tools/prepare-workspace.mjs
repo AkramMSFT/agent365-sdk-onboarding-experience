@@ -52,6 +52,23 @@ export function loadManifest(bundleRoot) {
   return manifest;
 }
 
+export function readVerifiedFile(root, file) {
+  const parts = file.path.split('/');
+  let source = root;
+  let info;
+  for (const part of parts) {
+    source = path.join(source, part);
+    info = fs.lstatSync(source);
+    if (info.isSymbolicLink()) throw new Error('Bundle source must not contain symbolic links.');
+  }
+  if (!info.isFile()) throw new Error('Bundle inventory contains a non-file.');
+  const data = fs.readFileSync(source);
+  if (data.length !== file.bytes || createHash('sha256').update(data).digest('hex') !== file.sha256) {
+    throw new Error(`Bundle integrity check failed: ${file.path}`);
+  }
+  return { parts, data, mode: info.mode };
+}
+
 export function prepareWorkspace(bundleRoot, { example, destination }) {
   const root = fs.realpathSync(bundleRoot);
   const manifest = loadManifest(root);
@@ -70,22 +87,12 @@ export function prepareWorkspace(bundleRoot, { example, destination }) {
   }
   const destinations = new Set();
   const copies = files.map(file => {
-    const parts = components(file.path);
-    let source = root;
-    for (const part of parts) {
-      source = path.join(source, part);
-      if (fs.lstatSync(source).isSymbolicLink()) throw new Error('Bundle source must not contain symbolic links.');
-    }
-    if (!fs.statSync(source).isFile()) throw new Error('Bundle inventory contains a non-file.');
-    const data = fs.readFileSync(source);
-    if (data.length !== file.bytes || createHash('sha256').update(data).digest('hex') !== file.sha256) {
-      throw new Error(`Bundle integrity check failed: ${file.path}`);
-    }
+    const { parts, data, mode } = readVerifiedFile(root, file);
     const relative = file.path.startsWith('kit/') ? parts.slice(1) : parts.slice(2);
     const key = relative.join('/').toLowerCase();
     if (destinations.has(key)) throw new Error('Sample files conflict with kit files.');
     destinations.add(key);
-    return { relative, data, mode: fs.statSync(source).mode };
+    return { relative, data, mode };
   });
 
   fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -133,6 +140,11 @@ export function main(args = process.argv.slice(2), bundleRoot = path.dirname(pat
     console.log('Language boundary: this sample requires deliberate/manual Agent 365 integration. Read its README; unknown-language validator success is not onboarding proof.');
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Real paths on both sides, so a symlinked or junctioned launch path still counts as direct.
+function launchedDirectly() {
+  try { return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url)); } catch { return false; }
+}
+
+if (launchedDirectly()) {
   try { main(); } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

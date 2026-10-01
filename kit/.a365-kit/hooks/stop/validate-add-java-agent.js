@@ -6,33 +6,24 @@
 
 'use strict';
 
-const fs = require('fs');
 const path = require('path');
-const { scanProject } = require('../lib/project-scan');
+const { cwd, read, exists, scan, finish } = require('../lib/kit-validator');
 const { readEnvValue, selectEnvFiles, envFlagEnabled } = require('../lib/env-config');
 
-const cwd = process.cwd();
 const issues = [];
-const read = p => { try { return fs.readFileSync(p, 'utf8'); } catch { return ''; } };
-const exists = p => { try { fs.accessSync(p); return true; } catch { return false; } };
 
 const isMaven = exists(path.join(cwd, 'pom.xml'));
 const isGradle = exists(path.join(cwd, 'build.gradle')) || exists(path.join(cwd, 'build.gradle.kts'));
 if (!isMaven && !isGradle) {
-  process.stdout.write(JSON.stringify({ ok: true, note: 'No pom.xml or build.gradle -- not a Java project; add-java-agent not applicable' }));
-  process.exit(0);
+  finish([], { note: 'No pom.xml or build.gradle -- not a Java project; add-java-agent not applicable' });
 }
 
 // Maven and Gradle put sources at src/main/java/<group>/<artifact>/, deeper than
 // scanProject's default maxDepth of 5, where the default would find no .java files.
-const allFiles = scanProject(cwd, { maxDepth: 12 });
-const javaFiles = allFiles.filter(f => f.endsWith('.java'));
-const anyJava = (...patterns) => javaFiles.some(f => {
-  const c = read(f);
-  return patterns.every(p => c.includes(p));
-});
+const javaTexts = scan(12).filter(f => f.endsWith('.java')).map(read);
+const anyJava = (...patterns) => javaTexts.some(c => patterns.every(p => c.includes(p)));
 
-if (javaFiles.length === 0) {
+if (javaTexts.length === 0) {
   issues.push('No .java files found -- run the add-java-agent skill to generate the hosting layer');
 }
 
@@ -100,9 +91,4 @@ if (generated) {
   issues.push('a365.generated.config.json not found -- run the a365-setup skill before adding the Java hosting layer');
 }
 
-if (issues.length) {
-  process.stdout.write(JSON.stringify({ ok: false, reason: issues.join('; ') }));
-  process.exit(1);
-}
-process.stdout.write(JSON.stringify({ ok: true }));
-process.exit(0);
+finish(issues);

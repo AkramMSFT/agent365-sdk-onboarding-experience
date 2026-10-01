@@ -179,13 +179,13 @@
     },
     {
       "path": "kit/.a365-kit/doctor.js",
-      "bytes": 7149,
-      "sha256": "f49b1134634db6f8c43b0c255faf50e8538a9f5d746d0d8cb3d5478141eeb5cf"
+      "bytes": 8928,
+      "sha256": "5ff3ca34a9dad24570c5328bcb225a125f7ca03c656d44141564392d3bd35447"
     },
     {
       "path": "kit/.a365-kit/grant-observability.mjs",
-      "bytes": 17767,
-      "sha256": "63712ac4ff8b5776f25f4dd009774efa0310ad00a1442b46c56d934509e4e7aa"
+      "bytes": 19173,
+      "sha256": "e96435ae2b4cc959b784720803b47377cd63c07e6bce4c1cfd45a3a4bb494324"
     },
     {
       "path": "kit/.a365-kit/hooks/lib/console-observability.js",
@@ -196,6 +196,11 @@
       "path": "kit/.a365-kit/hooks/lib/env-config.js",
       "bytes": 1382,
       "sha256": "d80a62808698bdfe9eee736da61b356ba73a66cd9edbfcc37c82c18eee3cdd48"
+    },
+    {
+      "path": "kit/.a365-kit/hooks/lib/kit-validator.js",
+      "bytes": 1871,
+      "sha256": "c6af679e619be51640c6d9dfb2b9caf00f04b751d2a416d5a44658f600c97acc"
     },
     {
       "path": "kit/.a365-kit/hooks/lib/project-scan.js",
@@ -219,23 +224,23 @@
     },
     {
       "path": "kit/.a365-kit/hooks/stop/validate-add-java-agent.js",
-      "bytes": 5021,
-      "sha256": "1b7dac8acf779db23c52f041775bb5d2c99771bef3c5d3ea48fac54397000786"
+      "bytes": 4504,
+      "sha256": "a4016041638547b973663ccee65ccbeff57eb3c55e90d82b3cb966ada71d8b87"
     },
     {
       "path": "kit/.a365-kit/hooks/stop/validate-add-lab-tools.js",
-      "bytes": 3585,
-      "sha256": "c881023ace38870dd9768746d864d8d4d772b53f3ea45aac5bf59321c4106d32"
+      "bytes": 2759,
+      "sha256": "7bd4f38f3b62d67d8491b8617de9aa314234001f922f13ffec75db381219df41"
     },
     {
       "path": "kit/.a365-kit/hooks/stop/validate-add-mcp-server.js",
-      "bytes": 3575,
-      "sha256": "a9c2ba33dbea95076381c5b6d7c05f86a0b21a458025714e5f4c2bc26c95c62e"
+      "bytes": 2697,
+      "sha256": "081cee6e7d7d4c51f11a4ca6f93e73ad64692a582c3a0357f78b0099ecbdcc5c"
     },
     {
       "path": "kit/.a365-kit/hooks/stop/validate-add-messaging-endpoint.js",
-      "bytes": 6257,
-      "sha256": "77da43dba8908438eab13d7a896112ac3ab069484e18e7845d48bc076ab509fd"
+      "bytes": 5341,
+      "sha256": "02b943813defbda8bd9830ad6c5af28e12df6c148dd2a3d79d7afd141965b61b"
     },
     {
       "path": "kit/.a365-kit/hooks/stop/validate-add-workiq-tools.js",
@@ -264,8 +269,8 @@
     },
     {
       "path": "kit/.a365-kit/hooks/stop/validate-test-local-channel.js",
-      "bytes": 3743,
-      "sha256": "7c0dfb67c16fb87c88553792815444ab5dba8702249e120e3e237aebfab0dc8e"
+      "bytes": 3182,
+      "sha256": "2a3dd18a56276175e1c8f7aceac0efddbcec9a699081eb2821d29ec8bd965932"
     },
     {
       "path": "kit/.a365-kit/hooks/stop/validate-test-local.js",
@@ -280,7 +285,7 @@
     {
       "path": "kit/.a365-kit/KIT-VERSION.json",
       "bytes": 724,
-      "sha256": "efdf85379fcdd866e45ab01390c66db91a8a2978cb8c972f4b6408cb95a2a424"
+      "sha256": "2c36a0531963f0981bbb99a021cb1a85e84240f611f4946c3d02677da2a4bde6"
     },
     {
       "path": "kit/.a365-kit/lib/observability-consent.mjs",
@@ -299,13 +304,13 @@
     },
     {
       "path": "kit/.a365-kit/NOTICE.md",
-      "bytes": 37268,
-      "sha256": "25def8f665ef8fb6157f9b95e7f36c10e61b3f4ac3458e2314a28a22ce566d10"
+      "bytes": 37392,
+      "sha256": "7f5176a140173f0ac0a5427014e1fb819cd1641324bc0e12b822fd2e50460178"
     },
     {
       "path": "kit/.a365-kit/run-a365.mjs",
-      "bytes": 3578,
-      "sha256": "3167911f3fd13fd94828e7a59c636c5ed4fef19c1c7f8659379870f4fb53202f"
+      "bytes": 3845,
+      "sha256": "f972fc0e79d6c0f2d666a5e63425858b3aa8488d22d8b0c29a2dbbfbfdd85ac7"
     },
     {
       "path": "kit/.a365-kit/settings-fragment.json",
@@ -449,8 +454,8 @@
     },
     {
       "path": "kit/.a365-kit/skills/purview-dlp-integration/assets/purview.env.example",
-      "bytes": 2336,
-      "sha256": "0c0919c4da524e3ad302fc6bc245860bd3392ab21aac58b475339253de874c9b"
+      "bytes": 2296,
+      "sha256": "edaa9cb6a78d34ccc45d978e269743a344bb2d44ad4cf674f7b0ffe2df22494a"
     },
     {
       "path": "kit/.a365-kit/skills/purview-dlp-integration/assets/purview.py",
@@ -709,8 +714,8 @@
     },
     {
       "path": "kit/.agents/skills/purview-dlp-integration/assets/purview.env.example",
-      "bytes": 2336,
-      "sha256": "0c0919c4da524e3ad302fc6bc245860bd3392ab21aac58b475339253de874c9b"
+      "bytes": 2296,
+      "sha256": "edaa9cb6a78d34ccc45d978e269743a344bb2d44ad4cf674f7b0ffe2df22494a"
     },
     {
       "path": "kit/.agents/skills/purview-dlp-integration/assets/purview.py",
@@ -989,8 +994,8 @@
     },
     {
       "path": "kit/.claude/skills/purview-dlp-integration/assets/purview.env.example",
-      "bytes": 2336,
-      "sha256": "0c0919c4da524e3ad302fc6bc245860bd3392ab21aac58b475339253de874c9b"
+      "bytes": 2296,
+      "sha256": "edaa9cb6a78d34ccc45d978e269743a344bb2d44ad4cf674f7b0ffe2df22494a"
     },
     {
       "path": "kit/.claude/skills/purview-dlp-integration/assets/purview.py",
@@ -1084,13 +1089,13 @@
     },
     {
       "path": "kit/agent365-kit.ps1",
-      "bytes": 29086,
-      "sha256": "6e806de948965015a51452996e63f0665f1becad6bfed69e1e486a5168c91089"
+      "bytes": 33341,
+      "sha256": "985de5a84142fadc67507648dbb4c541460c7fbe01f455dfc7e24d1ac878f3bc"
     },
     {
       "path": "kit/agent365-kit.sh",
-      "bytes": 24680,
-      "sha256": "f35fbccfd574c0c1ba92a5eb639ac5edc73d4c14d185d2a861f7d02efe78d179"
+      "bytes": 24691,
+      "sha256": "3ce92a86d08ba819b33d07e236d50c62ebc435b2dba813eb8aa795e8e0e8d35b"
     },
     {
       "path": "examples/dotnet-agent365-lab/.env.example",
@@ -1569,13 +1574,13 @@
     },
     {
       "path": "tools/bulk-onboard.mjs",
-      "bytes": 12405,
-      "sha256": "aae1126521f9d0c57d0fd659e104a2d35deb60976a0cb637925cdadf41f999c8"
+      "bytes": 12380,
+      "sha256": "9ba81aca678bdd450f43d1c0ca50dc16a42f4db99dbac8fc13fd7aedb6b2e59e"
     },
     {
       "path": "tools/prepare-workspace.mjs",
-      "bytes": 6979,
-      "sha256": "99c16734618a29f28743326397514625e118b3e0e2a8c93f533a92af81ed7ff1"
+      "bytes": 7290,
+      "sha256": "2859e0f8a91257fc03a04080345e5f9aa7f6903a50c12f2a98940b6c1caae1b8"
     },
     {
       "path": "docs/AGENT-EXAMPLES.md",
@@ -1614,18 +1619,18 @@
     },
     {
       "path": "GUIDE.md",
-      "bytes": 31530,
-      "sha256": "e715a7b9e88a533531e360b8b1ffc164d7cd1c27636113c4f5bf3550239f03a6"
+      "bytes": 31776,
+      "sha256": "daa187e3748448f973984a98d6dbc2351fdc7a782f3e333339c5d983ee4a3a98"
     },
     {
       "path": "NOTICE.md",
-      "bytes": 37268,
-      "sha256": "25def8f665ef8fb6157f9b95e7f36c10e61b3f4ac3458e2314a28a22ce566d10"
+      "bytes": 37392,
+      "sha256": "7f5176a140173f0ac0a5427014e1fb819cd1641324bc0e12b822fd2e50460178"
     },
     {
       "path": "CONTRIBUTING.md",
-      "bytes": 5574,
-      "sha256": "cd114b9a811bd638c668bf2b95077f004e63b60750da9a50720431ac6d0d3432"
+      "bytes": 5208,
+      "sha256": "20791468c4af5e71bf5e20d905e87fb94b3f91628e055cecec075e88528c4860"
     },
     {
       "path": "SECURITY.md",

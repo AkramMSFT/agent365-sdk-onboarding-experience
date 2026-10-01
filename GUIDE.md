@@ -539,6 +539,7 @@ Everything else is done by the CLI or a portal. These four need your own termina
 | A jailbreak-style or blocked prompt gets an error reply, or text starting `Exception caught :` | The host turned the model's refusal into an error. Hosts generated before kit 0.2.12 lack the reply helper; ask your CLI to *apply `.a365-kit/shared/turn-replies.md` to this agent*. The user then gets a plain refusal, and other errors an apology without the error text. |
 | One WorkIQ server fails and the agent loses every tool, or the whole turn fails | The SDK fails the run when any one server fails. Agents wired before kit 0.2.11 lack the per-server check; re-run *Add WorkIQ tools to this agent*. The log then names each server it skipped. |
 | Import fails on `microsoft_agents_a365.runtime` | Add `microsoft-agents-a365-runtime>=1.0.0` and install. |
+| `agent365-kit.ps1 -Update` stops with "Refusing to replace a linked project path" in a OneDrive folder | Launchers before kit 0.2.12 took OneDrive's synced folders for links. Extract the new kit zip over the project once; later updates work. |
 | Endpoint stops working after a tunnel restart | A recreated tunnel can change cluster; re-run the Step 6 `--update-endpoint` with the new URL. |
 | Teams turn fails with `MCPError` on a later message | External MCP tokens expire; keep servers open for the host's lifetime, not per turn. |
 | Agent answers nothing in Teams, host log shows no request | Nothing is listening, or the tunnel is down. Both must be running; re-check the Notification URL matches the current tunnel URL. |

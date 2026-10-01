@@ -8,7 +8,7 @@ Most of what ships is **generated**. `kit/`, `BUNDLE-MANIFEST.json` and `SHA256S
 
 | You want to change | Edit |
 |---|---|
-| Microsoft's skill content | a packaging fix-up in [`build/Build-Kit.ps1`](build/Build-Kit.ps1), or an SDK/playbook correction in [`build/upstream-fixups.json`](build/upstream-fixups.json) |
+| Microsoft's skill content | a fix-up in [`build/upstream-fixups.json`](build/upstream-fixups.json) |
 | An add-on, launcher, or validator written for this kit | [`payload/`](payload/) |
 | Build behaviour or a verification check | [`build/Build-Kit.ps1`](build/Build-Kit.ps1) |
 | An example agent or the workspace tool | [`examples/`](examples/), [`tools/`](tools/), and the catalog in [`build/bundle-examples.json`](build/bundle-examples.json) |
@@ -25,23 +25,7 @@ If you are not sure which it is, open it here and we will move it.
 
 ## Changing Microsoft's skills
 
-Every edit to upstream content is a **fix-up**: an entry that names a file, the exact text it expects to find, and the replacement. New fix-ups go in `build/upstream-fixups.json`. The `$fixups` array in `build/Build-Kit.ps1` holds the original packaging fix-ups and has this shape:
-
-```powershell
-@{
-    File = 'skills\instrument-observability\SKILL.md'
-    Find = @'
-<the exact upstream text>
-'@
-    Replace = @'
-<the replacement>
-'@
-}
-```
-
-The `Find` block must match upstream exactly. If it does not, the build throws rather than continuing, which is deliberate: an upstream rewording should stop the build loudly instead of producing a patched file that no longer says what we assumed.
-
-`build/upstream-fixups.json` is applied after the packaging fix-ups and the Copilot instructions are staged. Anchor each `find` on the smallest unique span of upstream text, not on text another fix-up wrote:
+Every edit to upstream content is a **fix-up**: an entry in `build/upstream-fixups.json` that names a file, the exact text it expects to find, and the replacement. The build applies them after the Copilot instructions are staged, in the order listed. Anchor each `find` on the smallest unique span of upstream text, not on text another fix-up wrote:
 
 ```json
 {
@@ -49,15 +33,16 @@ The `Find` block must match upstream exactly. If it does not, the build throws r
   "path": "skills\\test-local\\SKILL.md",
   "find": "exact upstream text, with enough surrounding lines to be unique",
   "replace": "the corrected text",
-  "expectedCount": 1
+  "expectedCount": 1,
+  "why": "what is wrong upstream, and the NOTICE.md section that documents it"
 }
 ```
 
-The build counts matches of `find` and fails unless the count equals `expectedCount`, so a patch can neither miss nor apply twice.
+The build counts matches of `find` and fails unless the count equals `expectedCount`, so a patch can neither miss nor apply twice. That is deliberate: an upstream rewording should stop the build loudly instead of producing a patched file that no longer says what we assumed. The build ignores `why`; it is there for the next reader.
 
-Three things are expected of a fix-up, whichever file it lives in:
+Three things are expected of a fix-up:
 
-1. **A comment above it** naming the defect and the `NOTICE.md` section that documents it.
+1. **A `why`** naming the defect and the `NOTICE.md` section that documents it.
 2. **An entry in [`NOTICE.md`](NOTICE.md)** explaining the failure it prevents, with upstream's own justification where one exists. Several fixes exist only to make one language behave the way another already does.
 3. **Evidence.** Say how you know. "Compiled and ran", "verified against a live tenant", "read from the shipped SDK source" and "transcribed, not yet run" are all acceptable; leaving it unsaid is not.
 
@@ -70,6 +55,7 @@ Requires PowerShell 7+, Git and Node.js.
 ```powershell
 .\build\Build-Kit.ps1 -UpstreamRef <upstreamCommit> -Zip
 node build/check-examples.mjs
+node --test build/test-*.mjs
 ```
 
 Use the `upstreamCommit` recorded in `kit/.a365-kit/KIT-VERSION.json` unless you are deliberately moving to a newer upstream. Commit `kit/`, `BUNDLE-MANIFEST.json` and `SHA256SUMS.txt` together with the change that produced them. CI rebuilds from the recorded commit and timestamp and fails if the committed output differs by a single byte.

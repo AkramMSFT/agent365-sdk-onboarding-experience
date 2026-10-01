@@ -1,5 +1,125 @@
 [
   {
+    "id": "hooks.stop.validate-make-ai-teammate.js#n1",
+    "path": "hooks\\stop\\validate-make-ai-teammate.js",
+    "find": "const hasPyproject  = fs.existsSync(path.join(cwd, 'pyproject.toml'));",
+    "replace": "// Accept requirements.txt as well as pyproject.toml, as the other validators do.\n// Changed by the Agent 365 Onboarding Kit; see its NOTICE.md, section 8.\nconst hasPyproject  = fs.existsSync(path.join(cwd, 'pyproject.toml'))\n                   || fs.existsSync(path.join(cwd, 'requirements.txt'));",
+    "expectedCount": 1,
+    "why": "Python is detected by pyproject.toml only, so a requirements.txt project fails the Node.js checks. NOTICE.md section 8."
+  },
+  {
+    "id": "hooks.stop.validate-make-ai-teammate.js#n2",
+    "path": "hooks\\stop\\validate-make-ai-teammate.js",
+    "find": "  // Check 2: agent.py — agent interface implementation\n  const agentFile = path.join(cwd, 'agent.py');\n  if (fs.existsSync(agentFile)) {",
+    "replace": "  // Check 2: agent.py — agent interface implementation\n  // Accept agent.py anywhere in the scanned tree, such as src/agent.py.\n  // Changed by the Agent 365 Onboarding Kit; see its NOTICE.md, section 8.\n  const agentFileAtRoot = path.join(cwd, 'agent.py');\n  const agentFile = fs.existsSync(agentFileAtRoot)\n    ? agentFileAtRoot\n    : pyFiles.find(f => path.basename(f) === 'agent.py');\n  if (agentFile && fs.existsSync(agentFile)) {",
+    "expectedCount": 1,
+    "why": "agent.py is accepted only at the project root, not under src/. NOTICE.md section 8."
+  },
+  {
+    "id": "hooks.stop.validate-make-ai-teammate.js#n3",
+    "path": "hooks\\stop\\validate-make-ai-teammate.js",
+    "find": "  // Check 4: Required packages in pyproject.toml — tooling/observability added by separate skills\n  if (hasPyproject) {\n    const required = [\n      'microsoft_agents_a365_notifications',\n      'microsoft_agents_a365_runtime',\n      'microsoft-agents-hosting-aiohttp',\n    ];\n    for (const pkg of required) {\n      if (!fileContains(path.join(cwd, 'pyproject.toml'), pkg)) {\n        issues.push(`${pkg} not found in pyproject.toml dependencies`);\n      }\n    }\n  }",
+    "replace": "  // Check 4: Required packages — tooling/observability added by separate skills\n  // Read pyproject.toml or requirements.txt, and compare package names the way pip\n  // does, with hyphens and underscores equal. Changed by the Agent 365 Onboarding Kit;\n  // see its NOTICE.md, section 8.\n  const depFile = ['pyproject.toml', 'requirements.txt']\n    .map(f => path.join(cwd, f))\n    .find(f => fs.existsSync(f));\n  if (depFile) {\n    const depText = fs.readFileSync(depFile, 'utf8').toLowerCase().replace(/_/g, '-');\n    const required = [\n      'microsoft_agents_a365_notifications',\n      'microsoft_agents_a365_runtime',\n      'microsoft-agents-hosting-aiohttp',\n    ];\n    for (const pkg of required) {\n      if (!depText.includes(pkg.toLowerCase().replace(/_/g, '-'))) {\n        issues.push(`${pkg} not found in ${path.basename(depFile)} dependencies`);\n      }\n    }\n  }",
+    "expectedCount": 1,
+    "why": "Dependencies are read from pyproject.toml only and compared by underscore name, although pip treats hyphen and underscore as equal. NOTICE.md section 8."
+  },
+  {
+    "id": "skills.instrument-observability.SKILL.md#n1",
+    "path": "skills\\instrument-observability\\SKILL.md",
+    "find": "1. **Preserve existing values.** If `Agent365Observability` (.NET) or\n   `ENABLE_A365_OBSERVABILITY_EXPORTER` (Node.js / Python) already exists, do not\n   overwrite. Add only missing keys.",
+    "replace": "1. **Preserve existing values, with one exception.** If `Agent365Observability`\n   (.NET) or `ENABLE_A365_OBSERVABILITY_EXPORTER` (Node.js / Python) already\n   exists, do not overwrite. Add only missing keys.\n\n   **Exception -- the exporter switch.** `ENABLE_A365_OBSERVABILITY_EXPORTER`\n   (Node.js / Python) is the one value you DO correct. `a365 setup` writes it as\n   `false`. Preserving that leaves the agent instrumented but silent: it builds a\n   span for every turn and exports none of them, and the Agent 365 Activity view\n   stays empty with nothing anywhere reporting a fault. Set it to `true`, and say\n   so in your summary. This mirrors invariant 3, which already has you correct the\n   equivalent .NET value for the same reason.",
+    "expectedCount": 1,
+    "why": "Invariant 1 preserves the exporter switch that a365 setup writes as false, so the agent exports nothing. NOTICE.md section 10."
+  },
+  {
+    "id": "skills.instrument-observability.SKILL.md#n2",
+    "path": "skills\\instrument-observability\\SKILL.md",
+    "find": "\"instrumented but\n     disabled; set `ENABLE_A365_OBSERVABILITY_EXPORTER=true` to start exporting\".",
+    "replace": "\"the exporter was off; I set\n     `ENABLE_A365_OBSERVABILITY_EXPORTER=true` for you -- restart the agent for\n     it to take effect\".",
+    "expectedCount": 1,
+    "why": "Rule 6 reports the disabled exporter instead of fixing it. NOTICE.md section 10."
+  },
+  {
+    "id": "skills.instrument-observability.SKILL.md#n3",
+    "path": "skills\\instrument-observability\\SKILL.md",
+    "find": "   1. Enable exporting when ready for production:",
+    "replace": "   1. Confirm the exporter is still on. This skill sets it, but a later\n      `a365 setup` run can reset it to false:",
+    "expectedCount": 1,
+    "why": "Phase 9 tells the user to enable an exporter the skill has already enabled. NOTICE.md section 10."
+  },
+  {
+    "id": "skills.instrument-observability.references.python-observability.md#n1",
+    "path": "skills\\instrument-observability\\references\\python-observability.md",
+    "find": "_token_cache = AgenticTokenCache()\n\nuse_microsoft_opentelemetry(\n    enable_a365=True,\n    a365_enable_observability_exporter=True,   # REQUIRED in 1.0+ to actually export spans\n    a365_token_resolver=_token_cache.get_observability_token,\n)",
+    "replace": "import asyncio\n\n_token_cache = AgenticTokenCache()\n\n# The exporter calls a365_token_resolver synchronously from its own thread, and\n# AgenticTokenCache only has an async getter, so run it on the host loop. Passing the\n# coroutine function directly sends \"Bearer <coroutine object ...>\", which the service\n# rejects as \"Tenant id  is invalid.\" even though the tenant is configured correctly.\nHOST_LOOP: asyncio.AbstractEventLoop | None = None\n\n\ndef _observability_token(agent_id: str, tenant_id: str) -> str | None:\n    if HOST_LOOP is None or not HOST_LOOP.is_running():\n        return None\n    try:\n        return asyncio.run_coroutine_threadsafe(\n            _token_cache.get_observability_token(agent_id, tenant_id), HOST_LOOP\n        ).result(timeout=15)\n    except Exception:\n        return None   # a telemetry failure must never cost a turn\n\n\nuse_microsoft_opentelemetry(\n    enable_a365=True,\n    a365_enable_observability_exporter=True,   # REQUIRED in 1.0+ to actually export spans\n    a365_token_resolver=_observability_token,\n)\n```\n\n`HOST_LOOP` has to be set from code that runs **on** the loop. The simplest place is the\nper-turn handler this skill already instruments — the same function that opens\n`InvokeAgentScope`. Reassigning it each turn is cheap and idempotent:\n\n```python\nimport asyncio\nimport src.agent as core          # the module holding HOST_LOOP\n\nasync def on_message(context, state):\n    core.HOST_LOOP = asyncio.get_running_loop()\n    with InvokeAgentScope.start(...):\n        ...\n```\n\nIf the host has an async startup coroutine, setting it once there works equally well:\n\n```python\nasync def start_server() -> None:\n    core.HOST_LOOP = asyncio.get_running_loop()\n```\n\nLeaving `HOST_LOOP` unset does not fail silently: the exporter logs\n`No token resolved for agent ...; dropping chunk N of M` at ERROR on every export.",
+    "expectedCount": 1,
+    "why": "The OBO sample passes an async getter as the synchronous a365_token_resolver, so every export sends a coroutine as the bearer token. NOTICE.md section 11."
+  },
+  {
+    "id": "skills.instrument-observability.SKILL.md#n4",
+    "path": "skills\\instrument-observability\\SKILL.md",
+    "find": "Wire `a365_token_resolver` to `AgenticTokenCache().get_observability_token` from `microsoft.opentelemetry.a365.hosting.token_cache_helpers` (or a custom resolver reading from `token_cache.py`).",
+    "replace": "Wire `a365_token_resolver` to a **synchronous** callable. Do NOT pass `AgenticTokenCache().get_observability_token` directly: it is `async def`, and the exporter calls the resolver synchronously from its own batch-export thread, so it receives an un-awaited coroutine. A coroutine object is truthy, so the exporter's \"no token\" guard does not catch it and it sends the literal string `Bearer <coroutine object ...>`; the service then rejects every export with `EndpointInvalid` / \"Tenant id  is invalid\" (the blank tenant means unreadable, not missing from config). Use the `run_coroutine_threadsafe` bridge shown in the OBO section of `.a365-kit/skills/instrument-observability/references/python-observability.md`, capturing the running loop in the same per-turn handler you wrap with `InvokeAgentScope`. A custom resolver reading from `token_cache.py` is also fine as long as it is sync.",
+    "expectedCount": 1,
+    "why": "SKILL.md states the same async resolver wiring and is read before the reference doc. NOTICE.md section 11."
+  },
+  {
+    "id": "hooks.stop.validate-instrument-observability.js#n1",
+    "path": "hooks\\stop\\validate-instrument-observability.js",
+    "find": "    const hasS2SEndpoint = anyFileContains(pyFiles, 'use_s2s_endpoint') ||\n                           anyFileContains(pyFiles, 'use_microsoft_opentelemetry');\n    if (!hasS2SEndpoint) {\n      issues.push('S2S: use_microsoft_opentelemetry() or use_s2s_endpoint not found in observability configuration');\n    }\n  }",
+    "replace": "    const hasS2SEndpoint = anyFileContains(pyFiles, 'use_s2s_endpoint') ||\n                           anyFileContains(pyFiles, 'use_microsoft_opentelemetry');\n    if (!hasS2SEndpoint) {\n      issues.push('S2S: use_microsoft_opentelemetry() or use_s2s_endpoint not found in observability configuration');\n    }\n  }\n\n  // a365_token_resolver is called synchronously. Wiring it to the async\n  // get_observability_token sends \"Bearer <coroutine object ...>\", which the exporter's\n  // empty-token check misses because a coroutine is truthy. See NOTICE.md, section 11.\n  const asyncResolverFiles = pyFiles.filter(f => {\n    try {\n      return /a365_token_resolver\\s*=\\s*[\\w.]*\\bget_observability_token\\b/\n        .test(fs.readFileSync(f, 'utf8'));\n    } catch {\n      return false;\n    }\n  });\n  if (asyncResolverFiles.length) {\n    issues.push('a365_token_resolver is wired directly to the async get_observability_token (' +\n      asyncResolverFiles.map(f => path.basename(f)).join(', ') +\n      ') -- the exporter calls it synchronously, so every export is rejected with ' +\n      'EndpointInvalid / \"Tenant id  is invalid\". Use the run_coroutine_threadsafe bridge ' +\n      'in references/python-observability.md (OBO section)');\n  }",
+    "expectedCount": 1,
+    "why": "The validator does not catch the async resolver in code already written. NOTICE.md section 11."
+  },
+  {
+    "id": "skills.instrument-observability.SKILL.md#n5",
+    "path": "skills\\instrument-observability\\SKILL.md",
+    "find": "RefreshObservabilityToken",
+    "replace": "refreshObservabilityToken",
+    "expectedCount": 2,
+    "why": "SKILL.md spells the Node.js API RefreshObservabilityToken, which is undefined; both occurrences become refreshObservabilityToken. NOTICE.md section 12."
+  },
+  {
+    "id": "hooks.stop.validate-instrument-observability.js#n2",
+    "path": "hooks\\stop\\validate-instrument-observability.js",
+    "find": "    const hasS2SEndpoint = anyFileContains(tsFiles, 'useS2SEndpoint') ||\n                           anyFileContains(tsFiles, 'useMicrosoftOpenTelemetry');\n    if (!hasS2SEndpoint) {\n      issues.push('S2S: useMicrosoftOpenTelemetry() or useS2SEndpoint not found in observability configuration');\n    }\n  }",
+    "replace": "    const hasS2SEndpoint = anyFileContains(tsFiles, 'useS2SEndpoint') ||\n                           anyFileContains(tsFiles, 'useMicrosoftOpenTelemetry');\n    if (!hasS2SEndpoint) {\n      issues.push('S2S: useMicrosoftOpenTelemetry() or useS2SEndpoint not found in observability configuration');\n    }\n  }\n\n  // On the OBO path the resolver reads a cache that only refreshObservabilityToken fills,\n  // so without the per-turn call nothing is exported. The PascalCase name is undefined\n  // and throws on the first turn. See NOTICE.md, section 12.\n  if (authMode !== 's2s') {\n    const wiresCacheResolver = anyFileContains(tsFiles, 'getObservabilityToken');\n    const refreshesPerTurn = anyFileContains(tsFiles, 'refreshObservabilityToken');\n    if (wiresCacheResolver && !refreshesPerTurn) {\n      issues.push('OBO: tokenResolver reads AgenticTokenCacheInstance but no call to ' +\n        'refreshObservabilityToken() was found -- the cache is never filled, the resolver ' +\n        'returns \"\" and no spans are exported. Call it at the start of each handler turn');\n    }\n    const badCase = tsFiles.filter(f => {\n      try {\n        return /\\.RefreshObservabilityToken\\b/.test(fs.readFileSync(f, 'utf8'));\n      } catch {\n        return false;\n      }\n    });\n    if (badCase.length) {\n      issues.push('RefreshObservabilityToken is spelled PascalCase in ' +\n        badCase.map(f => path.basename(f)).join(', ') +\n        ' -- the shipped API is refreshObservabilityToken (camelCase since GA 1.0); ' +\n        'the PascalCase name is undefined and throws on the first turn');\n    }\n  }",
+    "expectedCount": 1,
+    "why": "The validator does not check for the per-turn refreshObservabilityToken call that the Node.js OBO token cache depends on. NOTICE.md section 12."
+  },
+  {
+    "id": "hooks.stop.validate-instrument-observability.js#n3",
+    "path": "hooks\\stop\\validate-instrument-observability.js",
+    "find": "  const hasAppSettingsConfig = anyFileContains(appSettingsFiles,\n    'EnableAgent365Exporter', 'Agent365Observability');\n  if (!hasAppSettingsConfig) {\n    issues.push('appsettings.json does not contain A365 observability config (EnableAgent365Exporter)');\n  }",
+    "replace": "  const hasAppSettingsConfig = anyFileContains(appSettingsFiles,\n    'EnableAgent365Exporter', 'Agent365Observability');\n  if (!hasAppSettingsConfig) {\n    issues.push('appsettings.json does not contain A365 observability config (EnableAgent365Exporter)');\n  }\n\n  // Nothing is exported unless the root appsettings.json enables the exporter.\n  // appsettings.Development.json is meant to be false. See NOTICE.md, section 13.\n  const hasExporterKey = anyFileContains(appSettingsFiles, 'EnableAgent365Exporter');\n  const exporterIsOn = appSettingsFiles.some(f => {\n    try {\n      return /\"EnableAgent365Exporter\"\\s*:\\s*true/i.test(fs.readFileSync(f, 'utf8'));\n    } catch {\n      return false;\n    }\n  });\n  if (hasExporterKey && !exporterIsOn) {\n    issues.push('EnableAgent365Exporter is present in appsettings.json but not \"true\" -- the agent is instrumented but exports nothing; set it to true and restart');\n  }\n\n  // On the OBO path the exporter token comes from a cache that only the per-turn\n  // RegisterObservability() call fills. See NOTICE.md, section 13.\n  if (authMode !== 's2s' && hasDistroWired && !anyFileContains(csFiles, 'RegisterObservability')) {\n    issues.push('OBO: no call to RegisterObservability() found in any .cs file -- the exporter token cache ' +\n      'is never filled, so no spans are exported. Call it once per turn in the agent handler');\n  }",
+    "expectedCount": 1,
+    "why": "The .NET validator checks that EnableAgent365Exporter exists, not that it is true, and never checks for RegisterObservability. NOTICE.md section 13."
+  },
+  {
+    "id": "skills.a365-code-validator.SKILL.md#n1",
+    "path": "skills\\a365-code-validator\\SKILL.md",
+    "find": "When running from the plugin source (Claude Code / marketplace plugin), use:\n\n```bash\nnode .a365-kit/hooks/stop/validate-a365-code-validator.js\n```\n\nIf the runtime cannot expand `.a365-kit`, run with the absolute plugin path:\n\n```bash\nnode /path/to/agent365-skills/plugins/agent365/hooks/stop/validate-a365-code-validator.js\n```",
+    "replace": "Run it from the project root -- the path is relative to that root:\n\n```bash\nnode .a365-kit/hooks/stop/validate-a365-code-validator.js\n```\n\nIf the working directory is not the project root, use an absolute path:\n\n```bash\nnode /path/to/your-project/.a365-kit/hooks/stop/validate-a365-code-validator.js\n```",
+    "expectedCount": 1,
+    "why": "The run instructions stop making sense once the plugin path is rewritten. NOTICE.md section 7."
+  },
+  {
+    "id": "hooks.preToolUse.path-guard.js#n1",
+    "path": "hooks\\preToolUse\\path-guard.js",
+    "find": "const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT\n  ? safeRealpath(path.resolve(process.env.CLAUDE_PLUGIN_ROOT))\n  : null;",
+    "replace": "// Without a plugin install CLAUDE_PLUGIN_ROOT is unset, which would switch this guard\n// off. Fall back to the kit folder inside the project. Added by the Agent 365\n// Onboarding Kit; see its NOTICE.md, section 3.\nconst pluginRoot = process.env.CLAUDE_PLUGIN_ROOT\n  ? safeRealpath(path.resolve(process.env.CLAUDE_PLUGIN_ROOT))\n  : safeRealpath(path.join(projectRoot, '.a365-kit'));",
+    "expectedCount": 1,
+    "why": "CLAUDE_PLUGIN_ROOT is unset in a drop-in install, which would switch the guard off; fall back to the kit folder. NOTICE.md section 3."
+  },
+  {
+    "id": "hooks.preToolUse.path-guard.js#n2",
+    "path": "hooks\\preToolUse\\path-guard.js",
+    "find": "`Path guard: refusing to write inside CLAUDE_PLUGIN_ROOT (${pluginRoot}). ` +",
+    "replace": "`Path guard: refusing to write inside the Agent 365 kit folder (${pluginRoot}). ` +",
+    "expectedCount": 1,
+    "why": "The refusal message named an environment variable the user never set."
+  },
+  {
     "id": "copilot-instructions.md#h1",
     "path": "copilot-instructions.md",
     "find": "\n---\n\n## Quick reference\n\n| Skill | When to invoke | Delegates to |",

@@ -3,34 +3,11 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { kit, noteBlocks, python, run, workdir } from './doc-harness.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const kit = path.join(here, '..', 'kit', '.a365-kit');
-const note = fs.readFileSync(path.join(kit, 'shared', 'turn-replies.md'), 'utf8').replace(/\r\n/g, '\n');
-const python = process.env.PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3');
-
-function block(language, marker) {
-  const found = [...note.matchAll(new RegExp('```' + language + '\\n([\\s\\S]*?)```', 'g'))]
-    .map(m => m[1]).filter(code => code.includes(marker));
-  assert.equal(found.length, 1, `expected one ${language} block containing ${marker}`);
-  return found[0];
-}
-
-function workdir(files) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'turn-replies-'));
-  for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), text);
-  return dir;
-}
-
-function run(command, args, cwd, timeout = 60_000) {
-  const r = spawnSync(command, args, { cwd, encoding: 'utf8', timeout });
-  assert.equal(r.status, 0, `${command} ${args.join(' ')} failed:\n${r.stdout}\n${r.stderr}`);
-  return JSON.parse(r.stdout.trim().split('\n').pop());
-}
+const block = noteBlocks('turn-replies.md');
 
 const pythonHarness = `
 import asyncio, json, logging
@@ -126,7 +103,7 @@ Console.WriteLine(JsonSerializer.Serialize(result));
 const REFUSED = ['model_refusal', 'af_content_filter', 'guardrail', 'prompt_shield', 'chained', 'group'];
 
 test('Python helper answers refusals and hides other errors', () => {
-  const dir = workdir({ 'turn_replies.py': block('python', 'def reply_for_error('), 'harness.py': pythonHarness });
+  const dir = workdir('turn-replies-', { 'turn_replies.py': block('python', 'def reply_for_error('), 'harness.py': pythonHarness });
   const out = run(python, ['harness.py'], dir);
   for (const name of REFUSED) assert.equal(out[name], 'refusal', name);
   for (const name of ['other_400', 'plain', 'cycle']) assert.equal(out[name], 'error', name);
@@ -135,7 +112,7 @@ test('Python helper answers refusals and hides other errors', () => {
 });
 
 test('Node.js helper answers refusals and hides other errors', () => {
-  const dir = workdir({ 'turnReplies.ts': block('typescript', 'export function replyForError'), 'harness.ts': nodeHarness });
+  const dir = workdir('turn-replies-', { 'turnReplies.ts': block('typescript', 'export function replyForError'), 'harness.ts': nodeHarness });
   const out = run(process.execPath, ['harness.ts'], dir);
   for (const name of ['model_refusal', 'prompt_shield', 'policy_message', 'body_code', 'chained', 'aggregate']) assert.equal(out[name], 'refusal', name);
   for (const name of ['other_400', 'plain', 'cycle', 'not_an_error']) assert.equal(out[name], 'error', name);
@@ -145,7 +122,7 @@ test('Node.js helper answers refusals and hides other errors', () => {
 const dotnet = spawnSync('dotnet', ['--version'], { encoding: 'utf8' }).status === 0;
 
 test('.NET helper answers refusals and hides other errors', { skip: dotnet ? false : 'dotnet is not installed' }, () => {
-  const dir = workdir({
+  const dir = workdir('turn-replies-', {
     'TurnRepliesCheck.csproj': '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType>'
       + '<TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>'
       + '</PropertyGroup></Project>',

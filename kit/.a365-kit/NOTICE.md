@@ -13,8 +13,9 @@ Everything under `.a365-kit/skills/`, `.a365-kit/shared/`, `.a365-kit/hooks/` an
 
 - the launchers `agent365-kit.ps1` and `agent365-kit.sh`, and `AGENT365-KIT-README.md`
 - in `.a365-kit/`: `doctor.js`, `kit-version.js`, `run-a365.mjs`, `grant-observability.mjs`, `lib/`, `settings-fragment.json`, `KIT-VERSION.json` and `addons/`
-- `.a365-kit/hooks/lib/` and five validators in `.a365-kit/hooks/stop/`: `validate-add-java-agent.js`, `validate-add-lab-tools.js`, `validate-add-mcp-server.js`, `validate-add-messaging-endpoint.js` and `validate-test-local-channel.js`
-- `.a365-kit/shared/local-runtime-lessons.md`, `.a365-kit/shared/observability-access-package.md` and `.a365-kit/shared/purview-kit-notes.md`
+- in `.a365-kit/hooks/lib/`: `console-observability.js`, `env-config.js` and `kit-validator.js`; `project-scan.js` there is upstream's
+- five validators in `.a365-kit/hooks/stop/`: `validate-add-java-agent.js`, `validate-add-lab-tools.js`, `validate-add-mcp-server.js`, `validate-add-messaging-endpoint.js` and `validate-test-local-channel.js`
+- in `.a365-kit/shared/`: `local-runtime-lessons.md`, `observability-access-package.md`, `purview-kit-notes.md`, `mcp-server-health.md` and `turn-replies.md`
 - the "Kit add-ons" section at the end of `.a365-kit/copilot-instructions.md`
 
 Every build ships Microsoft's licence as `.a365-kit/LICENSE-agent365-skills`, the kit's licence as `.a365-kit/LICENSE`, and this notice as `.a365-kit/NOTICE.md`.

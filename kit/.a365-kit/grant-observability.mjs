@@ -7,7 +7,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline/promises';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 export const OBSERVABILITY_APP_ID = '9b975845-388f-4429-889e-eab1ef63949c';
 export const OBSERVABILITY_URI = `api://${OBSERVABILITY_APP_ID}`;
@@ -88,14 +88,13 @@ export function resolveIds(o, read = readJson) {
     blueprintObjectId: gen.agentBlueprintObjectId,
     identitySp: o.identitySp ?? gen.agenticAppId,
   };
-  if (ids.tenant !== undefined && ids.tenant !== null && !GUID.test(ids.tenant)) throw new UsageError(`tenant is not a GUID: ${ids.tenant}`);
+  for (const [k, v] of Object.entries(ids)) if (v != null && !GUID.test(v)) throw new UsageError(`${k} is not a GUID: ${v}`);
   if (!GUID.test(ids.blueprintAppId ?? '') && !GUID.test(ids.blueprintSp ?? '')) {
     throw new UsageError('No blueprint found: run from the agent project after a365 setup, or pass --blueprint-app-id.');
   }
   if (o.principals.includes('identity') && !GUID.test(ids.identitySp ?? '')) {
     throw new UsageError('No agent identity in a365.generated.config.json (agenticAppId). Finish a365 setup, pass --agent-identity-sp, or use --principals blueprint.');
   }
-  for (const [k, v] of Object.entries(ids)) if (v !== undefined && v !== null && !GUID.test(v)) throw new UsageError(`${k} is not a GUID: ${v}`);
   return ids;
 }
 
@@ -114,7 +113,12 @@ export function powershellCommands(ids, principals) {
     `$roleId = ($resourceSp.AppRoles | Where-Object { $_.Value -eq '${ROLE}' }).Id`,
   ];
   for (const p of principals) {
-    lines.push(`New-MgServicePrincipalAppRoleAssignment -ServicePrincipalId '${p.id}' -PrincipalId '${p.id}' -ResourceId $resourceSp.Id -AppRoleId $roleId   # ${p.label}`);
+    let sp = `'${p.id}'`;
+    if (!p.id) {
+      lines.push(`$blueprintSp = Get-MgServicePrincipal -Filter "appId eq '${p.appId}'"`);
+      sp = '$blueprintSp.Id';
+    }
+    lines.push(`New-MgServicePrincipalAppRoleAssignment -ServicePrincipalId ${sp} -PrincipalId ${sp} -ResourceId $resourceSp.Id -AppRoleId $roleId   # ${p.label}`);
   }
   return lines;
 }
@@ -145,14 +149,13 @@ export function azToken(tenant) {
 
 export function tokenClaims(token) {
   try {
-    const part = token.split('.')[1];
-    return JSON.parse(Buffer.from(part.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+    return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
   } catch { return {}; }
 }
 
 function graphClient(token, fetchImpl) {
   const call = async (method, url, body) => {
-    const res = await fetchImpl(url.startsWith('http') ? url : GRAPH + url, {
+    const res = await fetchImpl(GRAPH + url, {
       method,
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', accept: 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -167,8 +170,11 @@ function graphClient(token, fetchImpl) {
 
 const q = s => encodeURIComponent(s);
 
-export async function inspect(g, ids, o) {
-  const found = (await g.get(`/v1.0/servicePrincipals?$filter=${q(`appId eq '${OBSERVABILITY_APP_ID}'`)}&$select=id,displayName,appRoles,oauth2PermissionScopes`)).value ?? [];
+const PRINCIPALS = [['identity', 'agent identity', 'identitySp'], ['blueprint', 'blueprint', 'blueprintSp']];
+const principalsFor = (o, ids) => PRINCIPALS.filter(([k]) => o.principals.includes(k)).map(([, label, idKey]) => ({ label, id: ids[idKey] }));
+
+export async function resolveTargets(g, ids) {
+  const found = (await g.get(`/v1.0/servicePrincipals?$filter=${q(`appId eq '${OBSERVABILITY_APP_ID}'`)}&$select=id,displayName,appRoles`)).value ?? [];
   if (!found.length) {
     throw new UsageError(`The Agent 365 observability API has no service principal in this tenant. An administrator can create it with:\n  az ad sp create --id ${OBSERVABILITY_APP_ID}`);
   }
@@ -177,37 +183,40 @@ export async function inspect(g, ids, o) {
   if (!role) throw new UsageError(`${resource.displayName} does not expose the application role ${ROLE}.`);
 
   if (!GUID.test(ids.blueprintSp ?? '')) {
-    const bp = (await g.get(`/v1.0/servicePrincipals?$filter=${q(`appId eq '${ids.blueprintAppId}'`)}&$select=id,appId,displayName`)).value ?? [];
+    const bp = (await g.get(`/v1.0/servicePrincipals?$filter=${q(`appId eq '${ids.blueprintAppId}'`)}&$select=id`)).value ?? [];
     if (!bp.length) throw new UsageError(`No service principal for blueprint appId ${ids.blueprintAppId} in this tenant.`);
     ids.blueprintSp = bp[0].id;
   }
   if (!GUID.test(ids.blueprintAppId ?? '')) {
     ids.blueprintAppId = (await g.get(`/v1.0/servicePrincipals/${ids.blueprintSp}?$select=appId`)).appId;
   }
+  return { resource, role };
+}
 
-  const principals = [];
-  if (o.principals.includes('identity')) principals.push({ key: 'identity', label: 'agent identity', id: ids.identitySp });
-  if (o.principals.includes('blueprint')) principals.push({ key: 'blueprint', label: 'blueprint', id: ids.blueprintSp });
-  for (const p of principals) {
-    const assignments = (await g.get(`/v1.0/servicePrincipals/${p.id}/appRoleAssignments`)).value ?? [];
-    p.granted = assignments.some(a => a.resourceId === resource.id && a.appRoleId === role.id);
-  }
+async function readInherited(g, ids) {
+  if (!GUID.test(ids.blueprintObjectId ?? '')) return 'unknown';
+  try {
+    const inh = (await g.get(`/beta/applications/microsoft.graph.agentIdentityBlueprint/${ids.blueprintObjectId}/inheritablePermissions`)).value ?? [];
+    return inh.some(x => (x.resourceAppId ?? '').toLowerCase() === OBSERVABILITY_APP_ID) ? 'yes' : 'no';
+  } catch { return 'unknown'; }
+}
 
-  let delegated = null;
-  if (o.delegated) {
+export async function inspect(g, ids, o, { resource, role }, inherited) {
+  const principals = principalsFor(o, ids);
+  const readDelegated = async () => {
     const grants = (await g.get(`/v1.0/oauth2PermissionGrants?$filter=${q(`clientId eq '${ids.blueprintSp}' and resourceId eq '${resource.id}'`)}`)).value ?? [];
     const tenantWide = grants.find(x => x.consentType === 'AllPrincipals');
-    delegated = { grant: tenantWide ?? null, granted: !!tenantWide && (tenantWide.scope ?? '').split(' ').includes(ROLE) };
-  }
-
-  let inherited = 'unknown';
-  if (GUID.test(ids.blueprintObjectId ?? '')) {
-    try {
-      const inh = (await g.get(`/beta/applications/microsoft.graph.agentIdentityBlueprint/${ids.blueprintObjectId}/inheritablePermissions`)).value ?? [];
-      inherited = inh.some(x => (x.resourceAppId ?? '').toLowerCase() === OBSERVABILITY_APP_ID) ? 'yes' : 'no';
-    } catch { inherited = 'unknown'; }
-  }
-  return { resource, role, principals, delegated, inherited };
+    return { grant: tenantWide ?? null, granted: !!tenantWide && (tenantWide.scope ?? '').split(' ').includes(ROLE) };
+  };
+  const [delegated, inh] = await Promise.all([
+    o.delegated ? readDelegated() : null,
+    inherited ?? readInherited(g, ids),
+    ...principals.map(async p => {
+      const assignments = (await g.get(`/v1.0/servicePrincipals/${p.id}/appRoleAssignments`)).value ?? [];
+      p.granted = assignments.some(a => a.resourceId === resource.id && a.appRoleId === role.id);
+    }),
+  ]);
+  return { resource, role, principals, delegated, inherited: inh };
 }
 
 export function missing(state) {
@@ -222,8 +231,10 @@ function report(log, ids, state) {
   log(`Observability API   ${state.resource.displayName} (${state.resource.id})`);
   log(`Permission          ${ROLE}`);
   for (const p of state.principals) log(`  Application role on the ${p.label.padEnd(15)} ${mark(p.granted)}   ${p.id}`);
-  if (state.delegated) log(`  Delegated consent on the blueprint     ${mark(state.delegated.granted)}   ${ids.blueprintSp}`);
-  if (state.delegated) log(`  Inherited by agent identities           ${state.inherited}`);
+  if (state.delegated) {
+    log(`  Delegated consent on the blueprint     ${mark(state.delegated.granted)}   ${ids.blueprintSp}`);
+    log(`  Inherited by agent identities           ${state.inherited}`);
+  }
 }
 
 async function confirm(o, deps, todo) {
@@ -247,12 +258,13 @@ export async function main(argv, deps = {}) {
     }
 
     if (o.mode === 'print') {
-      const principals = [];
-      if (o.principals.includes('identity')) principals.push({ label: 'agent identity', id: ids.identitySp });
-      if (o.principals.includes('blueprint') && GUID.test(ids.blueprintSp ?? '')) principals.push({ label: 'blueprint', id: ids.blueprintSp });
+      // resolveIds guarantees an identity id, and a blueprint appId whenever its object id is unknown.
+      const principals = principalsFor(o, ids).map(p => (GUID.test(p.id ?? '') ? p : { label: p.label, appId: ids.blueprintAppId }));
       if (o.delegated && GUID.test(ids.blueprintAppId ?? '')) {
         log('Delegated consent: a Global Administrator opens this link, signs in and accepts:');
         log('  ' + consentUrl(ids.tenant, ids.blueprintAppId));
+      } else if (o.delegated) {
+        log('Delegated consent: the blueprint appId is unknown, so no consent link can be built. Pass --blueprint-app-id.');
       }
       log('Application role: an Application Administrator or Global Administrator runs, in PowerShell:');
       for (const l of powershellCommands(ids, principals)) log('  ' + l);
@@ -267,13 +279,17 @@ export async function main(argv, deps = {}) {
     log(`Signed in as        ${claims.upn ?? claims.unique_name ?? claims.oid ?? 'unknown'} (tenant ${ids.tenant})`);
     const g = graphClient(token, deps.fetch ?? fetch);
 
-    let state = await inspect(g, ids, o);
+    const targets = await resolveTargets(g, ids);
+    let state = await inspect(g, ids, o, targets);
     report(log, ids, state);
     let todo = missing(state);
     if (!todo.length) { log('Nothing to do: the observability permission is in place.'); return EXIT.ok; }
     if (o.mode === 'check') {
+      const passed = [['--config-dir', o.configDir === '.' ? null : o.configDir], ['--tenant', o.tenant],
+        ['--blueprint-app-id', o.blueprintAppId], ['--blueprint-sp', o.blueprintSp], ['--agent-identity-sp', o.identitySp]]
+        .filter(([, v]) => v).map(([flag, v]) => ` ${flag} ${/\s/.test(v) ? `"${v}"` : v}`).join('');
       log(`Missing: ${todo.join('; ')}. An administrator can grant it with:`);
-      log(`  node .a365-kit/grant-observability.mjs --grant --principals ${o.principals.join(',')}${o.delegated ? '' : ' --no-delegated'}`);
+      log(`  node .a365-kit/grant-observability.mjs --grant --principals ${o.principals.join(',')}${o.delegated ? '' : ' --no-delegated'}${passed}`);
       return EXIT.missing;
     }
 
@@ -303,7 +319,13 @@ export async function main(argv, deps = {}) {
       }
     }
 
-    state = await inspect(g, ids, o);
+    state = await inspect(g, ids, o, targets, state.inherited);
+    // Entra can take a moment to show a write it has accepted, so re-read before calling it missing.
+    const sleep = deps.sleep ?? (ms => new Promise(resolve => setTimeout(resolve, ms)));
+    for (let i = 0; i < 3 && !failures.length && missing(state).length; i++) {
+      await sleep(5000);
+      state = await inspect(g, ids, o, targets, state.inherited);
+    }
     log('');
     report(log, ids, state);
     todo = missing(state);
@@ -314,10 +336,14 @@ export async function main(argv, deps = {}) {
       log('Done. New tokens pick up the permission; restart the agent so it requests one.');
       return EXIT.ok;
     }
+    if (!failures.length) {
+      err('Microsoft Graph accepted every grant, but they are not visible yet. Run --check again in a few minutes.');
+      return EXIT.grantFailed;
+    }
     for (const f of failures) err(`Could not grant ${f.what}: ${f.error.message}`);
     if (failures.some(f => f.error instanceof GraphError && [401, 403].includes(f.error.status))) {
       err('The signed-in account lacks the role for this. Hand these to an administrator instead:');
-      if (todo.includes('delegated consent on the blueprint')) err('  Global Administrator, open and accept: ' + consentUrl(ids.tenant, ids.blueprintAppId));
+      if (state.delegated && !state.delegated.granted) err('  Global Administrator, open and accept: ' + consentUrl(ids.tenant, ids.blueprintAppId));
       const rolePrincipals = failures.filter(f => f.principal).map(f => f.principal);
       if (rolePrincipals.length) {
         err('  Application Administrator or Global Administrator, in PowerShell:');
@@ -332,7 +358,12 @@ export async function main(argv, deps = {}) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+// Real paths on both sides, so a symlinked or junctioned launch path still counts as direct.
+function launchedDirectly() {
+  try { return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url)); } catch { return false; }
+}
+
+if (launchedDirectly()) {
   const interactive = process.stdin.isTTY === true;
   const prompt = async question => {
     const rl = createInterface({ input: process.stdin, output: process.stdout });

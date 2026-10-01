@@ -1,36 +1,12 @@
 // Runs the MCP server health helpers from the shipped note against stand-in servers,
 // so a doc edit that breaks them fails the build.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { kit, noteBlocks, python, run, workdir } from './doc-harness.mjs';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const kit = path.join(here, '..', 'kit', '.a365-kit');
-const note = fs.readFileSync(path.join(kit, 'shared', 'mcp-server-health.md'), 'utf8').replace(/\r\n/g, '\n');
-const python = process.env.PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3');
-
-function block(language, marker) {
-  const found = [...note.matchAll(new RegExp('```' + language + '\\n([\\s\\S]*?)```', 'g'))]
-    .map(m => m[1]).filter(code => code.includes(marker));
-  assert.equal(found.length, 1, `expected one ${language} block defining ${marker}`);
-  return found[0];
-}
-
-function workdir(files) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-health-'));
-  for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), text);
-  return dir;
-}
-
-function run(command, args, cwd) {
-  const r = spawnSync(command, args, { cwd, encoding: 'utf8', timeout: 60_000 });
-  assert.equal(r.status, 0, `${command} failed:\n${r.stdout}\n${r.stderr}`);
-  return JSON.parse(r.stdout.trim().split('\n').pop());
-}
+const block = noteBlocks('mcp-server-health.md');
 
 const pythonHarness = `
 import asyncio, dataclasses, json, logging, time
@@ -123,7 +99,7 @@ console.log(JSON.stringify(out));
 `;
 
 test('Python helpers keep healthy servers and drop failing ones', () => {
-  const dir = workdir({
+  const dir = workdir('mcp-health-', {
     'openai_health.py': block('python', 'def healthy_mcp_agent('),
     'af_health.py': block('python', 'def healthy_mcp_tools('),
     'harness.py': pythonHarness,
@@ -144,7 +120,7 @@ test('Python helpers keep healthy servers and drop failing ones', () => {
 });
 
 test('Node.js helper keeps healthy servers and drops failing ones', () => {
-  const dir = workdir({ 'mcpHealth.ts': block('typescript', 'export async function healthyMcpAgent'), 'harness.ts': nodeHarness });
+  const dir = workdir('mcp-health-', { 'mcpHealth.ts': block('typescript', 'export async function healthyMcpAgent'), 'harness.ts': nodeHarness });
   const out = run(process.execPath, ['harness.ts'], dir);
   assert.equal(out.unchanged, true);
   assert.equal(out.empty, true);

@@ -1,0 +1,81 @@
+name: Verify the kit
+description: Exercises a freshly built kit beyond the build's own checks. Expects the kit zip at the repository root.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24
+
+    - name: Launchers parse
+      shell: pwsh
+      run: |
+        $errs = $null
+        [System.Management.Automation.Language.Parser]::ParseFile("$PWD/kit/agent365-kit.ps1", [ref]$null, [ref]$errs) | Out-Null
+        if ($errs) { $errs | ForEach-Object { $_.ToString() }; exit 1 }
+        bash -n kit/agent365-kit.sh
+
+    - name: Launcher works in Windows PowerShell 5.1 and PowerShell 7
+      shell: pwsh
+      run: |
+        $zip = (Resolve-Path "agent365-onboarding-kit-v$((Get-Content build/kit.version -Raw).Trim()).zip").Path
+        foreach ($shell in 'powershell.exe', 'pwsh') {
+          $dir = Join-Path $env:RUNNER_TEMP "launcher-$shell"
+          Expand-Archive -LiteralPath $zip -DestinationPath $dir
+          Push-Location $dir
+          & $shell -NoProfile -ExecutionPolicy Bypass -File agent365-kit.ps1 -SkipDoctor -WireCopilot
+          if ($LASTEXITCODE) { throw "$shell -WireCopilot failed" }
+          & $shell -NoProfile -ExecutionPolicy Bypass -File agent365-kit.ps1 -SetUpdateSource $zip
+          if ($LASTEXITCODE) { throw "$shell -SetUpdateSource failed" }
+          & $shell -NoProfile -ExecutionPolicy Bypass -File agent365-kit.ps1 -Update
+          if ($LASTEXITCODE) { throw "$shell -Update failed" }
+          foreach ($f in 'a365-kit.config.json', '.github/copilot-instructions.md') {
+            if ([IO.File]::ReadAllBytes((Join-Path $dir $f))[0] -eq 0xEF) { throw "$shell wrote a byte-order mark to $f" }
+          }
+          Pop-Location
+        }
+
+    - name: Launcher works in bash
+      shell: bash
+      run: |
+        set -euo pipefail
+        zip="$(pwd)/agent365-onboarding-kit-v$(tr -d '\r\n' < build/kit.version).zip"
+        dir="$(cygpath -u "$RUNNER_TEMP")/launcher-bash"
+        rm -rf "$dir" && mkdir -p "$dir" && unzip -q "$zip" -d "$dir" && cd "$dir"
+        bash agent365-kit.sh --skip-doctor --wire-copilot
+        bash agent365-kit.sh --set-update-source "$zip"
+        bash agent365-kit.sh --update
+        for f in a365-kit.config.json .github/copilot-instructions.md; do
+          if [ "$(head -c 3 "$f" | od -An -tx1 | tr -d ' \n')" = "efbbbf" ]; then echo "bash wrote a byte-order mark to $f"; exit 1; fi
+        done
+
+    - name: Validators run
+      shell: pwsh
+      run: |
+        $env:VALIDATE_SKIP_EXEC = "1"
+        Get-ChildItem kit/.a365-kit/hooks/stop/*.js | ForEach-Object {
+          Push-Location kit
+          # Some validators pretty-print their verdict across several lines; join before matching.
+          $out = (node $_.FullName 2>$null) -join "`n"
+          Pop-Location
+          if ($out -notmatch '"ok"\s*:\s*(true|false)') { throw "validator produced no JSON verdict: $($_.Name)" }
+        }
+        "all validators emit a verdict"
+
+    - name: Example dependencies use public registries
+      shell: pwsh
+      run: node build/check-examples.mjs
+
+    - name: Tool and helper tests
+      shell: pwsh
+      run: node --test build/test-*.mjs
+
+    - name: Workspace tool copies the kit and an example
+      shell: pwsh
+      run: |
+        node tools/prepare-workspace.mjs --list
+        node tools/prepare-workspace.mjs --example blank --destination "$env:RUNNER_TEMP/kit-only-check"
+        if (-not (Test-Path "$env:RUNNER_TEMP/kit-only-check/.a365-kit/KIT-VERSION.json")) { throw "prepare-workspace did not copy the kit" }
+        node tools/prepare-workspace.mjs --example nodejs-tool-agent --destination "$env:RUNNER_TEMP/node-example-check"
+        if ($LASTEXITCODE) { throw "prepare-workspace failed for nodejs-tool-agent" }

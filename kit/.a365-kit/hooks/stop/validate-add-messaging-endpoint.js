@@ -5,31 +5,16 @@
 
 'use strict';
 
-const fs = require('fs');
 const path = require('path');
-const { scanProject, filterByName } = require('../lib/project-scan');
+const { cwd, read, exists, scan, detect, finish, filterByName } = require('../lib/kit-validator');
 
-const cwd = process.cwd();
 const issues = [];
-const read = p => { try { return fs.readFileSync(p, 'utf8'); } catch { return ''; } };
-const exists = p => { try { fs.accessSync(p); return true; } catch { return false; } };
-
-let language = '';
-try {
-  const d = JSON.parse(read(path.join(cwd, '.a365-workspace-detection.local.json')));
-  language = String(d.programmingLanguage || '').toLowerCase();
-  if (d.agentType && String(d.agentType).toLowerCase() === 'ai-teammate') {
-    process.stdout.write(JSON.stringify({ ok: true, note: 'AI Teammate: hosting is owned by make-ai-teammate; add-messaging-endpoint not applicable' }));
-    process.exit(0);
-  }
-} catch { /* no detection cache */ }
-if (!language) {
-  if (exists(path.join(cwd, 'pyproject.toml')) || exists(path.join(cwd, 'requirements.txt'))) language = 'python';
-  else if (exists(path.join(cwd, 'package.json'))) language = 'nodejs';
-  else if (filterByName(scanProject(cwd), '.csproj').length) language = 'dotnet';
+const { language, detection } = detect();
+if (detection && detection.agentType && String(detection.agentType).toLowerCase() === 'ai-teammate') {
+  finish([], { note: 'AI Teammate: hosting is owned by make-ai-teammate; add-messaging-endpoint not applicable' });
 }
 
-const all = scanProject(cwd);
+const all = scan();
 const hasBoth = text => text.includes('/api/messages') && text.includes('/api/health');
 
 if (language === 'python') {
@@ -42,7 +27,7 @@ if (language === 'python') {
     if (!t.includes('start_agent_process')) issues.push('host does not call start_agent_process -- activities will not reach the AgentApplication');
   }
 } else if (language === 'nodejs') {
-  const hosts = all.filter(f => /\.(ts|js|mjs)$/.test(f) && !f.includes('node_modules')).filter(f => hasBoth(read(f)));
+  const hosts = all.filter(f => /\.(ts|js|mjs)$/.test(f) && hasBoth(read(f)));
   if (!hosts.length) issues.push('no Node.js file serves both /api/messages and /api/health -- hosting layer missing');
   else if (!hosts.map(read).join('\n').includes('authorizeJWT')) issues.push('host does not apply authorizeJWT -- /api/messages would accept anonymous calls');
 } else if (language === 'dotnet') {
@@ -94,6 +79,4 @@ else {
   } catch { issues.push('a365.generated.config.json cannot be parsed'); }
 }
 
-if (issues.length) { process.stdout.write(JSON.stringify({ ok: false, reason: issues.join('; ') })); process.exit(1); }
-process.stdout.write(JSON.stringify({ ok: true }));
-process.exit(0);
+finish(issues);

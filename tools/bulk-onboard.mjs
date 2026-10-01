@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 // Starts one herdr workspace per agent project and asks a coding CLI in each to run the
 // Agent 365 onboarding, so several agents can be onboarded side by side.
-import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { loadManifest } from './prepare-workspace.mjs';
+import { fileURLToPath } from 'node:url';
+import { loadManifest, readVerifiedFile } from './prepare-workspace.mjs';
 
 export const DEFAULT_PROMPT = 'Onboard this agent to Agent 365.';
 export const STATE_FILE = '.a365-bulk-onboard.json';
@@ -63,8 +62,7 @@ export function parseArgs(argv) {
 }
 
 export function agentName(raw) {
-  let n = raw.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^[^a-z]+/, '').replace(/-+$/, '');
-  if (!n) n = 'agent';
+  const n = raw.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^[^a-z]+/, '') || 'agent';
   return n.slice(0, 32).replace(/-+$/, '');
 }
 
@@ -76,10 +74,13 @@ export function readAgents(listFile) {
   for (const [index, line] of fs.readFileSync(listFile, 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/).entries()) {
     const text = line.trim();
     if (!text || text.startsWith('#')) continue;
+    // A quoted folder may itself contain a comma, so split after the closing quote.
+    const quoted = text.match(/^"([^"]*)"\s*(?:,(.*))?$/);
     const comma = text.lastIndexOf(',');
-    const folder = (comma > 0 ? text.slice(0, comma) : text).trim().replace(/^"(.*)"$/, '$1');
+    const [folder, label] = quoted ? [quoted[1], quoted[2]]
+      : comma > 0 ? [text.slice(0, comma).trim(), text.slice(comma + 1)] : [text, undefined];
     const dir = path.resolve(base, folder);
-    let name = agentName(comma > 0 ? text.slice(comma + 1).trim() : path.basename(dir));
+    let name = agentName(label !== undefined ? label.trim() : path.basename(dir));
     if (used.has(name)) {
       let n = 2;
       while (used.has(`${name.slice(0, 29)}-${n}`)) n++;
@@ -117,7 +118,7 @@ export function sendPrompt(herdr, name, prompt) {
   if (e.code === 'timeout') return { sent: true };
   if (e.code === 'agent_prompt_stalled') return { sent: false, note: 'request not confirmed; check the session, then --send-prompt' };
   if (e.code === 'agent_blocked') return { sent: false, note: 'waiting for you; answer it in herdr, then --send-prompt' };
-  return { sent: false, note: `prompt failed: ${e.message}` };
+  return { sent: false, failed: true, note: `prompt failed: ${e.message}` };
 }
 
 function kitInstalled(dir) {
@@ -125,16 +126,12 @@ function kitInstalled(dir) {
 }
 
 // The same integrity rule as prepare-workspace.mjs: every kit file must match the manifest.
-export function installKit(bundleRoot, dir) {
-  const manifest = loadManifest(bundleRoot);
-  const files = manifest.files.filter(f => f.path.startsWith('kit/'));
-  const plan = files.map(f => {
-    const data = fs.readFileSync(path.join(bundleRoot, ...f.path.split('/')));
-    if (data.length !== f.bytes || createHash('sha256').update(data).digest('hex') !== f.sha256) {
-      throw new Error(`Bundle integrity check failed: ${f.path}`);
-    }
-    return { out: path.join(dir, ...f.path.split('/').slice(1)), data };
-  });
+export function verifiedKit(bundleRoot) {
+  return loadManifest(bundleRoot).files.filter(f => f.path.startsWith('kit/')).map(f => readVerifiedFile(bundleRoot, f));
+}
+
+export function installKit(kit, dir) {
+  const plan = kit.map(({ parts, data }) => ({ out: path.join(dir, ...parts.slice(1)), data }));
   const clash = plan.find(p => fs.existsSync(p.out));
   if (clash) throw new Error(`${path.relative(dir, clash.out)} already exists; nothing was copied into ${dir}.`);
   for (const p of plan) {
@@ -184,7 +181,7 @@ export async function main(argv, deps = {}) {
         const status = got.code === 0 ? json(got.stdout)?.result?.agent?.agent_status ?? 'unknown' : 'not running';
         if (o.mode === 'send-prompt' && !s.prompted && (status === 'idle' || status === 'done')) {
           const sent = sendPrompt(herdr, a.name, o.prompt);
-          if (sent.sent) { s.prompted = true; rows.push([a.name, s.pane, 'prompted']); continue; }
+          if (sent.sent) { s.prompted = true; saveState(o.listFile, state); rows.push([a.name, s.pane, 'prompted']); continue; }
           failed++;
           rows.push([a.name, s.pane, sent.note]);
           continue;
@@ -192,7 +189,6 @@ export async function main(argv, deps = {}) {
         const note = !s.prompted && status === 'blocked' ? ' (answer it in herdr, then --send-prompt)' : '';
         rows.push([a.name, s.pane, `${status}${s.prompted ? '' : ', not prompted'}${note}`]);
       }
-      if (o.mode === 'send-prompt') saveState(o.listFile, state);
       table(log, rows);
       return failed ? EXIT.partial : EXIT.ok;
     }
@@ -221,10 +217,11 @@ export async function main(argv, deps = {}) {
 
     const rows = [];
     let failed = 0;
+    let kit;
     for (const a of agents) {
       const record = { dir: a.dir, cli: o.cli, prompted: false };
       try {
-        if (!kitInstalled(a.dir)) installKit(bundleRoot, a.dir);
+        if (!kitInstalled(a.dir)) installKit((kit ??= verifiedKit(bundleRoot)), a.dir);
         const created = herdr(['workspace', 'create', '--cwd', a.dir, '--label', a.name, '--no-focus']);
         if (created.code !== 0) throw new Error(`workspace: ${herdrError(created).message}`);
         const result = json(created.stdout)?.result;
@@ -244,8 +241,8 @@ export async function main(argv, deps = {}) {
         }
         const sent = sendPrompt(herdr, a.name, o.prompt);
         if (!sent.sent) {
-          if (!sent.note.startsWith('prompt failed')) rows.push([a.name, record.pane, sent.note]);
-          else { failed++; rows.push([a.name, record.pane, sent.note]); }
+          if (sent.failed) failed++;
+          rows.push([a.name, record.pane, sent.note]);
           continue;
         }
         record.prompted = true;
@@ -253,21 +250,26 @@ export async function main(argv, deps = {}) {
       } catch (e) {
         failed++;
         rows.push([a.name, record.pane ?? '-', `failed: ${e.message}`]);
+      } finally {
+        saveState(o.listFile, state);
       }
     }
-    saveState(o.listFile, state);
     table(log, rows);
     log('');
     log('Attach with "herdr" to follow every onboarding. A blocked session is waiting for your answer.');
     log('Check progress any time with --status.');
     return failed ? EXIT.partial : EXIT.ok;
   } catch (e) {
-    if (e instanceof UsageError) { err(e.message); return EXIT.usage; }
     err(e.message);
     return EXIT.usage;
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+// Real paths on both sides, so a symlinked or junctioned launch path still counts as direct.
+function launchedDirectly() {
+  try { return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url)); } catch { return false; }
+}
+
+if (launchedDirectly()) {
   main(process.argv.slice(2)).then(code => { process.exitCode = code; });
 }

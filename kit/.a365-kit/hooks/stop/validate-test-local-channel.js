@@ -4,23 +4,15 @@
 
 'use strict';
 
-const fs = require('fs');
 const path = require('path');
-const { scanProject } = require('../lib/project-scan');
+const { cwd, read, exists, scan, finish } = require('../lib/kit-validator');
 const { readEnvValue } = require('../lib/env-config');
 
-const cwd = process.cwd();
 const issues = [];
-const read = p => { try { return fs.readFileSync(p, 'utf8'); } catch { return ''; } };
-const exists = p => { try { fs.accessSync(p); return true; } catch { return false; } };
 
 // Maven and Gradle put sources deeper than scanProject's default maxDepth of 5.
-const allFiles = scanProject(cwd, { maxDepth: 12 });
-const sourceFiles = allFiles.filter(f => /\.(py|ts|js|cs|java)$/.test(f));
-const anySource = (...patterns) => sourceFiles.some(f => {
-  const c = read(f);
-  return patterns.every(p => c.includes(p));
-});
+const sourceTexts = scan(12).filter(f => /\.(py|ts|js|cs|java)$/.test(f)).map(read);
+const anySource = (...patterns) => sourceTexts.some(c => patterns.every(p => c.includes(p)));
 
 // Comment lines are dropped before any check that looks for a literal, because the
 // reference module explains its own choice with "127.0.0.1, never 0.0.0.0" and a
@@ -31,21 +23,15 @@ const codeOnly = text => text
   .join('\n');
 
 if (!anySource('A365_DEV_CHANNEL')) {
-  process.stdout.write(JSON.stringify({
-    ok: true,
-    note: 'No dev channel found -- test-local-channel not applied to this project',
-  }));
-  process.exit(0);
+  finish([], { note: 'No dev channel found -- test-local-channel not applied to this project' });
 }
 
 if (!anySource('127.0.0.1')) {
   issues.push('The dev channel does not bind 127.0.0.1 explicitly -- an unauthenticated ' +
     'endpoint must never listen on the wildcard address');
 }
-const bindsWildcard = sourceFiles.some(f => {
-  const c = read(f);
-  return c.includes('A365_DEV_CHANNEL') && /["']0\.0\.0\.0["']/.test(codeOnly(c));
-});
+const bindsWildcard = sourceTexts.some(c =>
+  c.includes('A365_DEV_CHANNEL') && /["']0\.0\.0\.0["']/.test(codeOnly(c)));
 if (bindsWildcard) {
   issues.push('The file wiring the dev channel binds 0.0.0.0 -- an unauthenticated ' +
     'endpoint must listen on 127.0.0.1 only');
@@ -83,9 +69,4 @@ if (!anySource('DEV CHANNEL ENABLED')) {
     'enabled so it is not left on unnoticed');
 }
 
-if (issues.length) {
-  process.stdout.write(JSON.stringify({ ok: false, reason: issues.join('; ') }));
-  process.exit(1);
-}
-process.stdout.write(JSON.stringify({ ok: true }));
-process.exit(0);
+finish(issues);

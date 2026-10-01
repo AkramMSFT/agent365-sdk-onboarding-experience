@@ -54,73 +54,12 @@ jobs:
           if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$kit") { throw "tag $env:GITHUB_REF_NAME does not match kit version $kit" }
           "kit version $kit"
 
-      - name: Launchers parse
-        shell: pwsh
-        run: |
-          $errs = $null
-          [System.Management.Automation.Language.Parser]::ParseFile("$PWD/kit/agent365-kit.ps1", [ref]$null, [ref]$errs) | Out-Null
-          if ($errs) { $errs | ForEach-Object { $_.ToString() }; exit 1 }
-          bash -n kit/agent365-kit.sh
+      - uses: ./.github/actions/verify-kit
 
-      - name: Launcher works in Windows PowerShell 5.1 and PowerShell 7
-        shell: pwsh
-        run: |
-          $zip = (Resolve-Path "agent365-onboarding-kit-v$((Get-Content build/kit.version -Raw).Trim()).zip").Path
-          foreach ($shell in 'powershell.exe', 'pwsh') {
-            $dir = Join-Path $env:RUNNER_TEMP "launcher-$shell"
-            Expand-Archive -LiteralPath $zip -DestinationPath $dir
-            Push-Location $dir
-            & $shell -NoProfile -ExecutionPolicy Bypass -File agent365-kit.ps1 -SkipDoctor -WireCopilot
-            if ($LASTEXITCODE) { throw "$shell -WireCopilot failed" }
-            & $shell -NoProfile -ExecutionPolicy Bypass -File agent365-kit.ps1 -SetUpdateSource $zip
-            if ($LASTEXITCODE) { throw "$shell -SetUpdateSource failed" }
-            & $shell -NoProfile -ExecutionPolicy Bypass -File agent365-kit.ps1 -Update
-            if ($LASTEXITCODE) { throw "$shell -Update failed" }
-            foreach ($f in 'a365-kit.config.json', '.github/copilot-instructions.md') {
-              if ([IO.File]::ReadAllBytes((Join-Path $dir $f))[0] -eq 0xEF) { throw "$shell wrote a byte-order mark to $f" }
-            }
-            Pop-Location
-          }
-
-      - name: Validators run
-        shell: pwsh
-        run: |
-          $env:VALIDATE_SKIP_EXEC = "1"
-          Get-ChildItem kit/.a365-kit/hooks/stop/*.js | ForEach-Object {
-            Push-Location kit
-            # Some validators pretty-print their verdict across several lines; join before matching.
-            $out = (node $_.FullName 2>$null) -join "`n"
-            Pop-Location
-            if ($out -notmatch '"ok"\s*:\s*(true|false)') { throw "validator produced no JSON verdict: $($_.Name)" }
-          }
-          "all validators emit a verdict"
-
-      - name: Example dependencies use public registries
-        run: node build/check-examples.mjs
-
-      - name: Observability grant tool tests
-        run: node --test build/test-grant-observability.mjs
-
-      - name: Bulk onboarding tool tests
-        run: node --test build/test-bulk-onboard.mjs
-
-      - name: MCP server health helper tests
-        run: node --test build/test-mcp-server-health.mjs
-
-      - name: Turn reply helper tests
-        run: node --test build/test-turn-replies.mjs
-
-      - name: Workspace tool copies the kit and an example
-        shell: pwsh
-        run: |
-          node tools/prepare-workspace.mjs --list
-          node tools/prepare-workspace.mjs --example blank --destination "$env:RUNNER_TEMP/kit-only-check"
-          if (-not (Test-Path "$env:RUNNER_TEMP/kit-only-check/.a365-kit/KIT-VERSION.json")) { throw "prepare-workspace did not copy the kit" }
-          node tools/prepare-workspace.mjs --example nodejs-tool-agent --destination "$env:RUNNER_TEMP/node-example-check"
-          if ($LASTEXITCODE) { throw "prepare-workspace failed for nodejs-tool-agent" }
-
+  # A tag points at a commit main has already tested, so a release reruns only the build job.
   examples:
     name: example ${{ matrix.example }}
+    if: github.ref_type != 'tag'
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -136,24 +75,39 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+          cache: true
+          cache-dependency-path: examples/${{ matrix.example }}/packages.lock.json
       - if: matrix.example == 'nodejs-tool-agent'
         uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
+          cache-dependency-path: examples/nodejs-tool-agent/package-lock.json
       - if: matrix.example == 'python-teammate'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: examples/python-teammate/requirements-lock.txt
       - if: matrix.example == 'java-tool-agent'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
+          cache: maven
+          cache-dependency-path: examples/java-tool-agent/pom.xml
       - if: matrix.example == 'go-tool-agent'
         uses: actions/setup-go@v5
         with:
           go-version-file: examples/go-tool-agent/go.mod
           cache: false
+      - if: matrix.example == 'rust-tool-agent'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ runner.os }}-${{ hashFiles('examples/rust-tool-agent/Cargo.lock') }}
 
       - name: Offline build and tests, as the example's README documents them
         run: |

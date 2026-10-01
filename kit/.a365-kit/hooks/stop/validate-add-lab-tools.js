@@ -5,26 +5,11 @@
 
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
-const { scanProject, filterByName } = require('../lib/project-scan');
+const { read, scan, detect, finish, filterByName } = require('../lib/kit-validator');
 
-const cwd = process.cwd();
 const issues = [];
-const read = p => { try { return fs.readFileSync(p, 'utf8'); } catch { return ''; } };
-const exists = p => { try { fs.accessSync(p); return true; } catch { return false; } };
-
-let language = '';
-try {
-  language = String(JSON.parse(read(path.join(cwd, '.a365-workspace-detection.local.json'))).programmingLanguage || '').toLowerCase();
-} catch { /* no detection cache */ }
-if (!language) {
-  if (exists(path.join(cwd, 'pyproject.toml')) || exists(path.join(cwd, 'requirements.txt'))) language = 'python';
-  else if (exists(path.join(cwd, 'package.json'))) language = 'nodejs';
-  else if (filterByName(scanProject(cwd), '.csproj').length) language = 'dotnet';
-}
-
-const all = scanProject(cwd);
+const { language } = detect();
+const all = scan();
 const modulePattern = { python: /lab_tools\.py$/, nodejs: /lab[_-]?[Tt]ools\.(ts|js|mjs)$/, dotnet: /LabTools\.cs$/ }[language];
 const moduleFiles = modulePattern ? all.filter(f => modulePattern.test(f)) : [];
 
@@ -48,13 +33,16 @@ if (!moduleFiles.length) {
   }
 }
 
-const agentFiles = {
-  python: filterByName(all, '.py').filter(f => /tools\s*=\s*\[/.test(read(f))),
-  nodejs: all.filter(f => /\.(ts|js|mjs)$/.test(f) && /tools\s*:\s*\[/.test(read(f)) && !f.includes('node_modules')),
-  dotnet: filterByName(all, '.cs').filter(f => /AIFunctionFactory|Tools\s*=|AddAgent/.test(read(f))),
-}[language] || [];
+function agentFiles() {
+  switch (language) {
+    case 'python': return filterByName(all, '.py').filter(f => /tools\s*=\s*\[/.test(read(f)));
+    case 'nodejs': return all.filter(f => /\.(ts|js|mjs)$/.test(f) && /tools\s*:\s*\[/.test(read(f)));
+    case 'dotnet': return filterByName(all, '.cs').filter(f => /AIFunctionFactory|Tools\s*=|AddAgent/.test(read(f)));
+    default: return [];
+  }
+}
 
-const agentText = agentFiles.map(read).join('\n');
+const agentText = agentFiles().map(read).join('\n');
 if (!/LAB_TOOLS|labTools|LabTools/.test(agentText)) {
   issues.push('the lab tools are not imported into the agent -- append them to the agent tools list (do not replace the existing tools)');
 } else if (language === 'python' && /tools\s*=\s*\[[^\]]*\]/.test(agentText)) {
@@ -65,6 +53,4 @@ if (!/LAB_TOOLS|labTools|LabTools/.test(agentText)) {
   }
 }
 
-if (issues.length) { process.stdout.write(JSON.stringify({ ok: false, reason: issues.join('; ') })); process.exit(1); }
-process.stdout.write(JSON.stringify({ ok: true }));
-process.exit(0);
+finish(issues);

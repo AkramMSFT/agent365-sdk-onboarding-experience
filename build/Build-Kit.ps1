@@ -101,6 +101,8 @@ Write-Host '=================================' -ForegroundColor DarkGray
 Step 'Resolving upstream (microsoft/agent365-skills)'
 
 $TempClone = $null
+try {
+
 if ($UpstreamPath) {
     if (-not (Test-Path -LiteralPath $UpstreamPath)) {
         throw "UpstreamPath not found: $UpstreamPath"
@@ -110,16 +112,17 @@ if ($UpstreamPath) {
 } else {
     $TempClone = Join-Path ([IO.Path]::GetTempPath()) ("a365-upstream-" + [Guid]::NewGuid().ToString('N').Substring(0, 8))
     # core.longpaths guards against the Windows MAX_PATH limit, which other Agent 365
-    # repositories have hit.
+    # repositories have hit. autocrlf off keeps upstream's committed line endings, so the
+    # output does not depend on the builder's git settings.
     if ($UpstreamRef -match '^[0-9a-f]{7,40}$') {
         Info "Cloning upstream and checking out commit $UpstreamRef into $TempClone"
-        & git -c core.longpaths=true clone --quiet https://github.com/microsoft/agent365-skills.git $TempClone 2>&1 | Out-Null
+        & git -c core.longpaths=true clone --quiet --config core.autocrlf=false --config core.eol=lf https://github.com/microsoft/agent365-skills.git $TempClone 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "git clone failed (exit $LASTEXITCODE)" }
         & git -C $TempClone -c advice.detachedHead=false checkout --quiet $UpstreamRef 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "upstream commit $UpstreamRef not found" }
     } else {
         Info "Shallow-cloning $UpstreamRef into $TempClone"
-        & git -c core.longpaths=true clone --depth 1 --branch $UpstreamRef `
+        & git -c core.longpaths=true clone --depth 1 --branch $UpstreamRef --config core.autocrlf=false --config core.eol=lf `
             https://github.com/microsoft/agent365-skills.git $TempClone 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "git clone failed (exit $LASTEXITCODE)" }
     }
@@ -143,8 +146,6 @@ if ($LASTEXITCODE -ne 0 -or -not $UpstreamCommit) { throw "Cannot read the upstr
 Ok "upstream agent365-skills v$UpstreamVersion ($UpstreamCommit)"
 Ok "building kit v$KitVersion"
 
-try {
-
 Step "Staging canonical content into $KIT_DIR/"
 
 if (Test-Path -LiteralPath $OutDir) { Remove-Item -LiteralPath $OutDir -Recurse -Force }
@@ -158,17 +159,19 @@ foreach ($dir in @('skills', 'shared', 'hooks')) {
     Ok "copied $dir/"
 }
 
-# Upstream commits some files with CRLF, and a Windows checkout of payload/ may too.
+$TextExtensions = '.md', '.js', '.mjs', '.json', '.sh', '.ps1', '.py', '.ts', '.cs', '.yml', '.yaml', '.txt'
+
+# A Windows checkout of payload/, or of upstream passed in with -UpstreamPath, may have CRLF.
 # Normalising to LF keeps the output, and so the manifest hashes, independent of the
 # platform that built it.
 function Convert-ToLf {
     param([string]$Root, [string]$What)
     $count = 0
-    foreach ($tf in Get-ChildItem -Path $Root -Recurse -File -Include '*.md', '*.js', '*.mjs', '*.json', '*.sh', '*.ps1', '*.py', '*.ts', '*.cs', '*.yml', '*.yaml', '*.txt') {
-        $bytes = [IO.File]::ReadAllBytes($tf.FullName)
-        $text  = [Text.Encoding]::UTF8.GetString($bytes)
+    foreach ($path in [IO.Directory]::EnumerateFiles($Root, '*', [IO.SearchOption]::AllDirectories)) {
+        if ([IO.Path]::GetExtension($path) -notin $TextExtensions) { continue }
+        $text = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($path))
         if ($text.Contains("`r`n")) {
-            [IO.File]::WriteAllText($tf.FullName, $text.Replace("`r`n", "`n"), [Text.UTF8Encoding]::new($false))
+            [IO.File]::WriteAllText($path, $text.Replace("`r`n", "`n"), [Text.UTF8Encoding]::new($false))
             $count++
         }
     }
@@ -176,6 +179,21 @@ function Convert-ToLf {
 }
 
 Convert-ToLf -Root $KitPath -What 'staged'
+
+# Staged under the kit folder rather than shipped at .github/copilot-instructions.md,
+# because that file is often project-owned and an unzip must not overwrite it.
+# agent365-kit.ps1 -WireCopilot creates or appends it, so links are relative to .github/.
+
+Step 'Staging GitHub Copilot instructions'
+
+$copilotSrc = Join-Path $Upstream '.github\copilot-instructions.md'
+if (-not (Test-Path -LiteralPath $copilotSrc)) { throw 'Upstream .github/copilot-instructions.md not found; fix-ups and the Copilot path need it.' }
+$copilot = Get-Content -LiteralPath $copilotSrc -Raw
+$copilot = $copilot.Replace('../plugins/agent365/', "../$KIT_DIR/")
+$copilot = $copilot.Replace('plugins/agent365/skills/', "$KIT_DIR/skills/")
+$copilot = $copilot.Replace('plugins/agent365/shared/', "$KIT_DIR/shared/")
+Set-Content -LiteralPath (Join-Path $KitPath 'copilot-instructions.md') -Value $copilot -NoNewline -Encoding UTF8
+Ok 'copilot-instructions.md staged (links repointed)'
 
 Step 'Rewriting ${CLAUDE_PLUGIN_ROOT} references'
 
@@ -223,484 +241,30 @@ foreach ($file in $nsFiles) {
 }
 Ok "rewrote $nsCount /agent365: command references across $nsRewritten files"
 
-# Packaging fix-ups. Each Find must match upstream exactly, so an upstream rewording
-# fails the build instead of shipping a half-patched file.
+# Every change to upstream's text is data with an id and an exact match count, so an
+# upstream rewording fails the build instead of shipping a half-patched file. Entries for
+# one file apply in the order listed, and some target the Copilot file staged above.
 
-$fixups = @(
-    @{
-        # Python is detected by pyproject.toml only, so a requirements.txt project fails the
-        # Node.js checks. NOTICE.md section 8.
-        File = 'hooks\stop\validate-make-ai-teammate.js'
-        Find = @'
-const hasPyproject  = fs.existsSync(path.join(cwd, 'pyproject.toml'));
-'@
-        Replace = @'
-// Accept requirements.txt as well as pyproject.toml, as the other validators do.
-// Changed by the Agent 365 Onboarding Kit; see its NOTICE.md, section 8.
-const hasPyproject  = fs.existsSync(path.join(cwd, 'pyproject.toml'))
-                   || fs.existsSync(path.join(cwd, 'requirements.txt'));
-'@
-    }
-    @{
-        # agent.py is accepted only at the project root, not under src/. NOTICE.md section 8.
-        File = 'hooks\stop\validate-make-ai-teammate.js'
-        Find = @'
-  // Check 2: agent.py — agent interface implementation
-  const agentFile = path.join(cwd, 'agent.py');
-  if (fs.existsSync(agentFile)) {
-'@
-        Replace = @'
-  // Check 2: agent.py — agent interface implementation
-  // Accept agent.py anywhere in the scanned tree, such as src/agent.py.
-  // Changed by the Agent 365 Onboarding Kit; see its NOTICE.md, section 8.
-  const agentFileAtRoot = path.join(cwd, 'agent.py');
-  const agentFile = fs.existsSync(agentFileAtRoot)
-    ? agentFileAtRoot
-    : pyFiles.find(f => path.basename(f) === 'agent.py');
-  if (agentFile && fs.existsSync(agentFile)) {
-'@
-    }
-    @{
-        # Dependencies are read from pyproject.toml only and compared by underscore name,
-        # although pip treats hyphen and underscore as equal. NOTICE.md section 8.
-        File = 'hooks\stop\validate-make-ai-teammate.js'
-        Find = @'
-  // Check 4: Required packages in pyproject.toml — tooling/observability added by separate skills
-  if (hasPyproject) {
-    const required = [
-      'microsoft_agents_a365_notifications',
-      'microsoft_agents_a365_runtime',
-      'microsoft-agents-hosting-aiohttp',
-    ];
-    for (const pkg of required) {
-      if (!fileContains(path.join(cwd, 'pyproject.toml'), pkg)) {
-        issues.push(`${pkg} not found in pyproject.toml dependencies`);
-      }
-    }
-  }
-'@
-        Replace = @'
-  // Check 4: Required packages — tooling/observability added by separate skills
-  // Read pyproject.toml or requirements.txt, and compare package names the way pip
-  // does, with hyphens and underscores equal. Changed by the Agent 365 Onboarding Kit;
-  // see its NOTICE.md, section 8.
-  const depFile = ['pyproject.toml', 'requirements.txt']
-    .map(f => path.join(cwd, f))
-    .find(f => fs.existsSync(f));
-  if (depFile) {
-    const depText = fs.readFileSync(depFile, 'utf8').toLowerCase().replace(/_/g, '-');
-    const required = [
-      'microsoft_agents_a365_notifications',
-      'microsoft_agents_a365_runtime',
-      'microsoft-agents-hosting-aiohttp',
-    ];
-    for (const pkg of required) {
-      if (!depText.includes(pkg.toLowerCase().replace(/_/g, '-'))) {
-        issues.push(`${pkg} not found in ${path.basename(depFile)} dependencies`);
-      }
-    }
-  }
-'@
-    }
-    @{
-        # Invariant 1 preserves the exporter switch that a365 setup writes as false, so the
-        # agent exports nothing. NOTICE.md section 10.
-        File = 'skills\instrument-observability\SKILL.md'
-        Find = @'
-1. **Preserve existing values.** If `Agent365Observability` (.NET) or
-   `ENABLE_A365_OBSERVABILITY_EXPORTER` (Node.js / Python) already exists, do not
-   overwrite. Add only missing keys.
-'@
-        Replace = @'
-1. **Preserve existing values, with one exception.** If `Agent365Observability`
-   (.NET) or `ENABLE_A365_OBSERVABILITY_EXPORTER` (Node.js / Python) already
-   exists, do not overwrite. Add only missing keys.
-
-   **Exception -- the exporter switch.** `ENABLE_A365_OBSERVABILITY_EXPORTER`
-   (Node.js / Python) is the one value you DO correct. `a365 setup` writes it as
-   `false`. Preserving that leaves the agent instrumented but silent: it builds a
-   span for every turn and exports none of them, and the Agent 365 Activity view
-   stays empty with nothing anywhere reporting a fault. Set it to `true`, and say
-   so in your summary. This mirrors invariant 3, which already has you correct the
-   equivalent .NET value for the same reason.
-'@
-    }
-    @{
-        # Rule 6 reports the disabled exporter instead of fixing it. NOTICE.md section 10.
-        File = 'skills\instrument-observability\SKILL.md'
-        Find = @'
-"instrumented but
-     disabled; set `ENABLE_A365_OBSERVABILITY_EXPORTER=true` to start exporting".
-'@
-        Replace = @'
-"the exporter was off; I set
-     `ENABLE_A365_OBSERVABILITY_EXPORTER=true` for you -- restart the agent for
-     it to take effect".
-'@
-    }
-    @{
-        # Phase 9 tells the user to enable an exporter the skill has already enabled.
-        # NOTICE.md section 10.
-        File = 'skills\instrument-observability\SKILL.md'
-        Find = @'
-   1. Enable exporting when ready for production:
-'@
-        Replace = @'
-   1. Confirm the exporter is still on. This skill sets it, but a later
-      `a365 setup` run can reset it to false:
-'@
-    }
-    @{
-        # The OBO sample passes an async getter as the synchronous a365_token_resolver, so
-        # every export sends a coroutine as the bearer token. NOTICE.md section 11.
-        File = 'skills\instrument-observability\references\python-observability.md'
-        Find = @'
-_token_cache = AgenticTokenCache()
-
-use_microsoft_opentelemetry(
-    enable_a365=True,
-    a365_enable_observability_exporter=True,   # REQUIRED in 1.0+ to actually export spans
-    a365_token_resolver=_token_cache.get_observability_token,
-)
-'@
-        Replace = @'
-import asyncio
-
-_token_cache = AgenticTokenCache()
-
-# The exporter calls a365_token_resolver synchronously from its own thread, and
-# AgenticTokenCache only has an async getter, so run it on the host loop. Passing the
-# coroutine function directly sends "Bearer <coroutine object ...>", which the service
-# rejects as "Tenant id  is invalid." even though the tenant is configured correctly.
-HOST_LOOP: asyncio.AbstractEventLoop | None = None
-
-
-def _observability_token(agent_id: str, tenant_id: str) -> str | None:
-    if HOST_LOOP is None or not HOST_LOOP.is_running():
-        return None
-    try:
-        return asyncio.run_coroutine_threadsafe(
-            _token_cache.get_observability_token(agent_id, tenant_id), HOST_LOOP
-        ).result(timeout=15)
-    except Exception:
-        return None   # a telemetry failure must never cost a turn
-
-
-use_microsoft_opentelemetry(
-    enable_a365=True,
-    a365_enable_observability_exporter=True,   # REQUIRED in 1.0+ to actually export spans
-    a365_token_resolver=_observability_token,
-)
-```
-
-`HOST_LOOP` has to be set from code that runs **on** the loop. The simplest place is the
-per-turn handler this skill already instruments — the same function that opens
-`InvokeAgentScope`. Reassigning it each turn is cheap and idempotent:
-
-```python
-import asyncio
-import src.agent as core          # the module holding HOST_LOOP
-
-async def on_message(context, state):
-    core.HOST_LOOP = asyncio.get_running_loop()
-    with InvokeAgentScope.start(...):
-        ...
-```
-
-If the host has an async startup coroutine, setting it once there works equally well:
-
-```python
-async def start_server() -> None:
-    core.HOST_LOOP = asyncio.get_running_loop()
-```
-
-Leaving `HOST_LOOP` unset does not fail silently: the exporter logs
-`No token resolved for agent ...; dropping chunk N of M` at ERROR on every export.
-'@
-    }
-    @{
-        # SKILL.md states the same async resolver wiring and is read before the reference
-        # doc. NOTICE.md section 11.
-        File = 'skills\instrument-observability\SKILL.md'
-        Find = @'
-Wire `a365_token_resolver` to `AgenticTokenCache().get_observability_token` from `microsoft.opentelemetry.a365.hosting.token_cache_helpers` (or a custom resolver reading from `token_cache.py`).
-'@
-        Replace = @'
-Wire `a365_token_resolver` to a **synchronous** callable. Do NOT pass `AgenticTokenCache().get_observability_token` directly: it is `async def`, and the exporter calls the resolver synchronously from its own batch-export thread, so it receives an un-awaited coroutine. A coroutine object is truthy, so the exporter's "no token" guard does not catch it and it sends the literal string `Bearer <coroutine object ...>`; the service then rejects every export with `EndpointInvalid` / "Tenant id  is invalid" (the blank tenant means unreadable, not missing from config). Use the `run_coroutine_threadsafe` bridge shown in the OBO section of `.a365-kit/skills/instrument-observability/references/python-observability.md`, capturing the running loop in the same per-turn handler you wrap with `InvokeAgentScope`. A custom resolver reading from `token_cache.py` is also fine as long as it is sync.
-'@
-    }
-    @{
-        # The validator does not catch the async resolver in code already written.
-        # NOTICE.md section 11.
-        File = 'hooks\stop\validate-instrument-observability.js'
-        Find = @'
-    const hasS2SEndpoint = anyFileContains(pyFiles, 'use_s2s_endpoint') ||
-                           anyFileContains(pyFiles, 'use_microsoft_opentelemetry');
-    if (!hasS2SEndpoint) {
-      issues.push('S2S: use_microsoft_opentelemetry() or use_s2s_endpoint not found in observability configuration');
-    }
-  }
-'@
-        Replace = @'
-    const hasS2SEndpoint = anyFileContains(pyFiles, 'use_s2s_endpoint') ||
-                           anyFileContains(pyFiles, 'use_microsoft_opentelemetry');
-    if (!hasS2SEndpoint) {
-      issues.push('S2S: use_microsoft_opentelemetry() or use_s2s_endpoint not found in observability configuration');
-    }
-  }
-
-  // a365_token_resolver is called synchronously. Wiring it to the async
-  // get_observability_token sends "Bearer <coroutine object ...>", which the exporter's
-  // empty-token check misses because a coroutine is truthy. See NOTICE.md, section 11.
-  const asyncResolverFiles = pyFiles.filter(f => {
-    try {
-      return /a365_token_resolver\s*=\s*[\w.]*\bget_observability_token\b/
-        .test(fs.readFileSync(f, 'utf8'));
-    } catch {
-      return false;
-    }
-  });
-  if (asyncResolverFiles.length) {
-    issues.push('a365_token_resolver is wired directly to the async get_observability_token (' +
-      asyncResolverFiles.map(f => path.basename(f)).join(', ') +
-      ') -- the exporter calls it synchronously, so every export is rejected with ' +
-      'EndpointInvalid / "Tenant id  is invalid". Use the run_coroutine_threadsafe bridge ' +
-      'in references/python-observability.md (OBO section)');
-  }
-'@
-    }
-    @{
-        # SKILL.md spells the Node.js API RefreshObservabilityToken, which is undefined;
-        # both occurrences become refreshObservabilityToken. NOTICE.md section 12.
-        File = 'skills\instrument-observability\SKILL.md'
-        Find = @'
-RefreshObservabilityToken
-'@
-        Replace = @'
-refreshObservabilityToken
-'@
-    }
-    @{
-        # The validator does not check for the per-turn refreshObservabilityToken call that
-        # the Node.js OBO token cache depends on. NOTICE.md section 12.
-        File = 'hooks\stop\validate-instrument-observability.js'
-        Find = @'
-    const hasS2SEndpoint = anyFileContains(tsFiles, 'useS2SEndpoint') ||
-                           anyFileContains(tsFiles, 'useMicrosoftOpenTelemetry');
-    if (!hasS2SEndpoint) {
-      issues.push('S2S: useMicrosoftOpenTelemetry() or useS2SEndpoint not found in observability configuration');
-    }
-  }
-'@
-        Replace = @'
-    const hasS2SEndpoint = anyFileContains(tsFiles, 'useS2SEndpoint') ||
-                           anyFileContains(tsFiles, 'useMicrosoftOpenTelemetry');
-    if (!hasS2SEndpoint) {
-      issues.push('S2S: useMicrosoftOpenTelemetry() or useS2SEndpoint not found in observability configuration');
-    }
-  }
-
-  // On the OBO path the resolver reads a cache that only refreshObservabilityToken fills,
-  // so without the per-turn call nothing is exported. The PascalCase name is undefined
-  // and throws on the first turn. See NOTICE.md, section 12.
-  if (authMode !== 's2s') {
-    const wiresCacheResolver = anyFileContains(tsFiles, 'getObservabilityToken');
-    const refreshesPerTurn = anyFileContains(tsFiles, 'refreshObservabilityToken');
-    if (wiresCacheResolver && !refreshesPerTurn) {
-      issues.push('OBO: tokenResolver reads AgenticTokenCacheInstance but no call to ' +
-        'refreshObservabilityToken() was found -- the cache is never filled, the resolver ' +
-        'returns "" and no spans are exported. Call it at the start of each handler turn');
-    }
-    const badCase = tsFiles.filter(f => {
-      try {
-        return /\.RefreshObservabilityToken\b/.test(fs.readFileSync(f, 'utf8'));
-      } catch {
-        return false;
-      }
-    });
-    if (badCase.length) {
-      issues.push('RefreshObservabilityToken is spelled PascalCase in ' +
-        badCase.map(f => path.basename(f)).join(', ') +
-        ' -- the shipped API is refreshObservabilityToken (camelCase since GA 1.0); ' +
-        'the PascalCase name is undefined and throws on the first turn');
-    }
-  }
-'@
-    }
-    @{
-        # The .NET validator checks that EnableAgent365Exporter exists, not that it is true,
-        # and never checks for RegisterObservability. NOTICE.md section 13.
-        File = 'hooks\stop\validate-instrument-observability.js'
-        Find = @'
-  const hasAppSettingsConfig = anyFileContains(appSettingsFiles,
-    'EnableAgent365Exporter', 'Agent365Observability');
-  if (!hasAppSettingsConfig) {
-    issues.push('appsettings.json does not contain A365 observability config (EnableAgent365Exporter)');
-  }
-'@
-        Replace = @'
-  const hasAppSettingsConfig = anyFileContains(appSettingsFiles,
-    'EnableAgent365Exporter', 'Agent365Observability');
-  if (!hasAppSettingsConfig) {
-    issues.push('appsettings.json does not contain A365 observability config (EnableAgent365Exporter)');
-  }
-
-  // Nothing is exported unless the root appsettings.json enables the exporter.
-  // appsettings.Development.json is meant to be false. See NOTICE.md, section 13.
-  const hasExporterKey = anyFileContains(appSettingsFiles, 'EnableAgent365Exporter');
-  const exporterIsOn = appSettingsFiles.some(f => {
-    try {
-      return /"EnableAgent365Exporter"\s*:\s*true/i.test(fs.readFileSync(f, 'utf8'));
-    } catch {
-      return false;
-    }
-  });
-  if (hasExporterKey && !exporterIsOn) {
-    issues.push('EnableAgent365Exporter is present in appsettings.json but not "true" -- the agent is instrumented but exports nothing; set it to true and restart');
-  }
-
-  // On the OBO path the exporter token comes from a cache that only the per-turn
-  // RegisterObservability() call fills. See NOTICE.md, section 13.
-  if (authMode !== 's2s' && hasDistroWired && !anyFileContains(csFiles, 'RegisterObservability')) {
-    issues.push('OBO: no call to RegisterObservability() found in any .cs file -- the exporter token cache ' +
-      'is never filled, so no spans are exported. Call it once per turn in the agent handler');
-  }
-'@
-    }
-    @{
-        # The run instructions stop making sense once the plugin path is rewritten.
-        # NOTICE.md section 7.
-        File = 'skills\a365-code-validator\SKILL.md'
-        Find = @'
-When running from the plugin source (Claude Code / marketplace plugin), use:
-
-```bash
-node .a365-kit/hooks/stop/validate-a365-code-validator.js
-```
-
-If the runtime cannot expand `.a365-kit`, run with the absolute plugin path:
-
-```bash
-node /path/to/agent365-skills/plugins/agent365/hooks/stop/validate-a365-code-validator.js
-```
-'@
-        Replace = @'
-Run it from the project root -- the path is relative to that root:
-
-```bash
-node .a365-kit/hooks/stop/validate-a365-code-validator.js
-```
-
-If the working directory is not the project root, use an absolute path:
-
-```bash
-node /path/to/your-project/.a365-kit/hooks/stop/validate-a365-code-validator.js
-```
-'@
-    }
-)
-
-foreach ($fix in $fixups) {
-    $target = Join-Path $KitPath $fix.File
-    if (-not (Test-Path -LiteralPath $target)) { throw "Fix-up target missing: $($fix.File)" }
-    $content = Get-Content -LiteralPath $target -Raw
-    $find = $fix.Find -replace "`r`n", "`n"
-    $normalized = $content -replace "`r`n", "`n"
-    if ($normalized -notmatch [regex]::Escape($find)) {
-        throw "Fix-up no longer matches in $($fix.File). Upstream changed -- update the fix-up in Build-Kit.ps1."
-    }
-    $normalized = $normalized.Replace($find, ($fix.Replace -replace "`r`n", "`n"))
-    Set-Content -LiteralPath $target -Value $normalized -NoNewline -Encoding UTF8
-    Ok "fix-up applied: $($fix.File)"
-}
-
-# Upstream refuses writes inside CLAUDE_PLUGIN_ROOT. That variable is unset in a
-# drop-in install, which silently disables the guard. Repoint it at the kit folder
-# so the skills still cannot modify their own instructions.
-
-Step 'Patching path-guard.js for drop-in mode'
-
-$guard = Join-Path $KitPath 'hooks\preToolUse\path-guard.js'
-$guardText = Get-Content -LiteralPath $guard -Raw
-
-$guardOld = @'
-const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT
-  ? safeRealpath(path.resolve(process.env.CLAUDE_PLUGIN_ROOT))
-  : null;
-'@
-$guardNew = @'
-// Without a plugin install CLAUDE_PLUGIN_ROOT is unset, which would switch this guard
-// off. Fall back to the kit folder inside the project. Added by the Agent 365
-// Onboarding Kit; see its NOTICE.md, section 3.
-const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT
-  ? safeRealpath(path.resolve(process.env.CLAUDE_PLUGIN_ROOT))
-  : safeRealpath(path.join(projectRoot, '__KIT_DIR__'));
-'@
-
-$guardOldN = $guardOld -replace "`r`n", "`n"
-$guardTextN = $guardText -replace "`r`n", "`n"
-if ($guardTextN -notmatch [regex]::Escape($guardOldN)) {
-    throw 'path-guard.js no longer matches the expected pluginRoot block. Update Build-Kit.ps1.'
-}
-$guardTextN = $guardTextN.Replace($guardOldN, ($guardNew -replace "`r`n", "`n").Replace('__KIT_DIR__', $KIT_DIR))
-Set-Content -LiteralPath $guard -Value $guardTextN -NoNewline -Encoding UTF8
-Ok 'path-guard.js now guards the kit folder'
-
-# The refusal message names an environment variable the user never set.
-$guardTextN = Get-Content -LiteralPath $guard -Raw
-$guardTextN = $guardTextN.Replace(
-    '`Path guard: refusing to write inside CLAUDE_PLUGIN_ROOT (${pluginRoot}). ` +',
-    '`Path guard: refusing to write inside the Agent 365 kit folder (${pluginRoot}). ` +')
-Set-Content -LiteralPath $guard -Value $guardTextN -NoNewline -Encoding UTF8
-
-# Staged under the kit folder rather than shipped at .github/copilot-instructions.md,
-# because that file is often project-owned and an unzip must not overwrite it.
-# agent365-kit.ps1 -WireCopilot creates or appends it, so links are relative to .github/.
-
-Step 'Staging GitHub Copilot instructions'
-
-$copilotSrc = Join-Path $Upstream '.github\copilot-instructions.md'
-if (Test-Path -LiteralPath $copilotSrc) {
-    $copilot = Get-Content -LiteralPath $copilotSrc -Raw
-    $copilot = $copilot.Replace('../plugins/agent365/', "../$KIT_DIR/")
-    $copilot = $copilot.Replace('plugins/agent365/skills/', "$KIT_DIR/skills/")
-    $copilot = $copilot.Replace('plugins/agent365/shared/', "$KIT_DIR/shared/")
-    # Staged after the namespace pass above, so apply that rewrite here too.
-    $copilot = $copilot -replace '/agent365:(?=[a-z])', '/'
-    Set-Content -LiteralPath (Join-Path $KitPath 'copilot-instructions.md') -Value $copilot -NoNewline -Encoding UTF8
-    Ok 'copilot-instructions.md staged (links repointed)'
-} else {
-    Warn 'upstream .github/copilot-instructions.md not found -- Copilot path will be unavailable'
-}
-
-# SDK and playbook corrections, kept as data so each one carries an id and an expected
-# match count. Applied after the path-guard patch and the Copilot staging because some
-# entries target those outputs.
-
-Step 'Applying upstream correctness fix-ups'
+Step 'Applying upstream fix-ups'
 
 $fixupFile = Join-Path (Join-Path $RepoRoot 'build') 'upstream-fixups.json'
-if (Test-Path -LiteralPath $fixupFile) {
-    $jsonFixups = Get-Content -LiteralPath $fixupFile -Raw -Encoding UTF8 | ConvertFrom-Json
-    $applied = 0
-    foreach ($fx in $jsonFixups) {
-        $target = Join-Path $KitPath $fx.path
-        if (-not (Test-Path -LiteralPath $target)) { throw "Fix-up target missing: $($fx.id) -> $($fx.path)" }
-        $content = (Get-Content -LiteralPath $target -Raw) -replace "`r`n", "`n"
-        $find    = ($fx.find    -replace "`r`n", "`n")
-        $replace = ($fx.replace -replace "`r`n", "`n")
-        $count   = ([regex]::Matches($content, [regex]::Escape($find))).Count
-        $want    = if ($null -ne $fx.expectedCount) { [int]$fx.expectedCount } else { 1 }
-        if ($count -ne $want) {
-            throw "Fix-up '$($fx.id)' matched $count time(s) in $($fx.path); expected $want. Upstream changed -- update build/upstream-fixups.json."
+if (-not (Test-Path -LiteralPath $fixupFile)) { throw 'build/upstream-fixups.json not found.' }
+$jsonFixups = @(Get-Content -LiteralPath $fixupFile -Raw -Encoding UTF8 | ConvertFrom-Json)
+foreach ($group in $jsonFixups | Group-Object path -CaseSensitive) {
+    $target = Join-Path $KitPath $group.Name
+    if (-not (Test-Path -LiteralPath $target)) { throw "Fix-up target missing: $($group.Group[0].id) -> $($group.Name)" }
+    $content = [IO.File]::ReadAllText($target).Replace("`r`n", "`n")
+    foreach ($fx in $group.Group) {
+        $find  = $fx.find.Replace("`r`n", "`n")
+        $count = [regex]::Matches($content, [regex]::Escape($find)).Count
+        if ($count -ne [int]$fx.expectedCount) {
+            throw "Fix-up '$($fx.id)' matched $count time(s) in $($fx.path); expected $($fx.expectedCount). Upstream changed -- update build/upstream-fixups.json."
         }
-        Set-Content -LiteralPath $target -Value $content.Replace($find, $replace) -NoNewline -Encoding UTF8
-        $applied++
+        $content = $content.Replace($find, $fx.replace.Replace("`r`n", "`n"))
     }
-    Ok "$applied upstream fix-ups applied from upstream-fixups.json"
-} else {
-    Warn 'build/upstream-fixups.json not found -- no upstream correctness fix-ups applied'
+    [IO.File]::WriteAllText($target, $content, [Text.UTF8Encoding]::new($false))
 }
+Ok "$($jsonFixups.Count) upstream fix-ups applied from upstream-fixups.json"
 
 Step 'Adding kit payload'
 
@@ -708,12 +272,18 @@ Copy-Item -Path (Join-Path $PayloadDir '.a365-kit\*') -Destination $KitPath -Rec
 Copy-Item -Path (Join-Path $PayloadDir 'agent365-kit.ps1') -Destination $OutDir -Force
 Copy-Item -Path (Join-Path $PayloadDir 'agent365-kit.sh')  -Destination $OutDir -Force
 
-$readmeSrc = Join-Path $PayloadDir 'AGENT365-KIT-README.md'
-if (Test-Path -LiteralPath $readmeSrc) {
-    Copy-Item -Path $readmeSrc -Destination $OutDir -Force
-    Ok 'AGENT365-KIT-README.md'
+Copy-Item -Path (Join-Path $PayloadDir 'AGENT365-KIT-README.md') -Destination $OutDir -Force
+Ok 'add-ons, runtime scripts, launchers, AGENT365-KIT-README.md'
+
+# Ordinal order, so the lists and everything built from them do not depend on the file
+# system or the culture of the machine that builds.
+function Get-DirNames([string] $Path) {
+    $names = [string[]]@(Get-ChildItem -LiteralPath $Path -Directory | ForEach-Object Name)
+    [Array]::Sort($names, [StringComparer]::Ordinal)
+    return , $names
 }
-Ok 'doctor.js, kit-version.js, settings-fragment.json, launchers'
+$skillNames = Get-DirNames (Join-Path $KitPath 'skills')
+$addonNames = Get-DirNames (Join-Path $KitPath 'addons')
 
 # The kit redistributes Microsoft's MIT-licensed skills, so both licences and the notice
 # ship inside .a365-kit/, not the project root where they would collide with the user's
@@ -749,22 +319,19 @@ function Get-SkillFrontMatter([string] $Path) {
     return $fm
 }
 $copilotPath = Join-Path $KitPath 'copilot-instructions.md'
-$addonRoot = Join-Path $KitPath 'addons'
-if ((Test-Path -LiteralPath $copilotPath) -and (Test-Path -LiteralPath $addonRoot)) {
-    $sb = [Text.StringBuilder]::new()
-    [void]$sb.Append("`n---`n`n## Kit add-ons`n`n")
-    [void]$sb.Append("These skills ship with the Agent 365 Onboarding Kit, not with Microsoft's skills. When a request matches one of them, follow its SKILL.md exactly.`n")
-    foreach ($dir in Get-ChildItem -LiteralPath $addonRoot -Directory | Sort-Object Name) {
-        $fm = Get-SkillFrontMatter (Join-Path $dir.FullName 'SKILL.md')
-        if ($fm['name'] -ne $dir.Name -or -not $fm['description']) { throw "Add-on front matter incomplete: $($dir.Name)" }
-        [void]$sb.Append("`n## Add-on: $($dir.Name)`n`n")
-        [void]$sb.Append("**Full instructions:** [$KIT_DIR/addons/$($dir.Name)/SKILL.md](../$KIT_DIR/addons/$($dir.Name)/SKILL.md)`n`n")
-        [void]$sb.Append("$($fm['description'])`n")
-    }
-    $copilotText = [IO.File]::ReadAllText($copilotPath).Replace("`r`n", "`n").TrimEnd() + "`n" + $sb.ToString()
-    Write-Lf $copilotPath $copilotText
-    Ok 'copilot-instructions.md lists the kit add-ons'
+$sb = [Text.StringBuilder]::new()
+[void]$sb.Append("`n---`n`n## Kit add-ons`n`n")
+[void]$sb.Append("These skills ship with the Agent 365 Onboarding Kit, not with Microsoft's skills. When a request matches one of them, follow its SKILL.md exactly.`n")
+foreach ($name in $addonNames) {
+    $fm = Get-SkillFrontMatter (Join-Path $KitPath "addons\$name\SKILL.md")
+    if ($fm['name'] -ne $name -or -not $fm['description']) { throw "Add-on front matter incomplete: $name" }
+    [void]$sb.Append("`n## Add-on: $name`n`n")
+    [void]$sb.Append("**Full instructions:** [$KIT_DIR/addons/$name/SKILL.md](../$KIT_DIR/addons/$name/SKILL.md)`n`n")
+    [void]$sb.Append("$($fm['description'])`n")
 }
+$copilotText = [IO.File]::ReadAllText($copilotPath).Replace("`r`n", "`n").TrimEnd() + "`n" + $sb.ToString()
+Write-Lf $copilotPath $copilotText
+Ok 'copilot-instructions.md lists the kit add-ons'
 
 $manifest = [ordered]@{
     kitVersion      = $KitVersion
@@ -773,13 +340,14 @@ $manifest = [ordered]@{
     upstreamCommit  = $UpstreamCommit
     builtUtc        = $BuiltUtc
     updateSource    = $UpdateSource
-    skills          = @(Get-ChildItem -Path (Join-Path $KitPath 'skills') -Directory | ForEach-Object { $_.Name })
-    addons          = @(if (Test-Path -LiteralPath (Join-Path $KitPath 'addons')) {
-                          Get-ChildItem -Path (Join-Path $KitPath 'addons') -Directory | ForEach-Object { $_.Name } })
+    skills          = $skillNames
+    addons          = $addonNames
 }
 $manifest | ConvertTo-Json -Depth 5 |
     Set-Content -LiteralPath (Join-Path $KitPath 'KIT-VERSION.json') -Encoding UTF8
 Ok 'KIT-VERSION.json'
+
+Convert-ToLf -Root $OutDir -What 'payload'
 
 # Each CLI family looks in a different place. The skill files are byte-identical
 # in all three locations because every internal reference points at .a365-kit/.
@@ -797,31 +365,23 @@ foreach ($target in $discoveryTargets) {
     Copy-Item -Path (Join-Path $KitPath 'skills\*') -Destination $dest -Recurse -Force
     # Add-ons live in .a365-kit/addons/, apart from the upstream skills so provenance
     # stays clear, but are discovered the same way.
-    $addonsPath = Join-Path $KitPath 'addons'
-    if (Test-Path -LiteralPath $addonsPath) {
-        Copy-Item -Path (Join-Path $addonsPath '*') -Destination $dest -Recurse -Force
-    }
+    Copy-Item -Path (Join-Path $KitPath 'addons\*') -Destination $dest -Recurse -Force
     Ok "$($target.Path)  ->  $($target.For)"
 }
-$addonNames = @()
-if (Test-Path -LiteralPath (Join-Path $KitPath 'addons')) {
-    $addonNames = @(Get-ChildItem -Path (Join-Path $KitPath 'addons') -Directory | ForEach-Object { $_.Name })
-    Ok "add-ons included: $($addonNames -join ', ')"
-}
-
-Convert-ToLf -Root $OutDir -What 'payload'
+Ok "add-ons included: $($addonNames -join ', ')"
 
 Step 'Verifying build'
 
 $problems = @()
+$outFiles = @([IO.Directory]::EnumerateFiles($OutDir, '*', [IO.SearchOption]::AllDirectories))
+$kitFiles = @($outFiles | Where-Object { $_.StartsWith($KitPath + [IO.Path]::DirectorySeparatorChar) })
+function Select-Ext([string[]] $Files, [string[]] $Extensions) { @($Files | Where-Object { [IO.Path]::GetExtension($_) -in $Extensions }) }
 
 # Only the ${CLAUDE_PLUGIN_ROOT} token is an error, because it resolves to nothing in a
 # drop-in install. path-guard.js reads process.env.CLAUDE_PLUGIN_ROOT deliberately, and
 # NOTICE.md quotes both forms to document the rewrite.
 $noticeCopy = Join-Path $KitPath 'NOTICE.md'
-$leftovers = Get-ChildItem -Path $OutDir -Recurse -File -Include '*.md', '*.js', '*.json' |
-    Where-Object { $_.FullName -ne $noticeCopy } |
-    Select-String -Pattern '${CLAUDE_PLUGIN_ROOT}' -SimpleMatch
+$leftovers = Select-String -LiteralPath (Select-Ext $outFiles '.md', '.js', '.json' | Where-Object { $_ -ne $noticeCopy }) -Pattern '${CLAUDE_PLUGIN_ROOT}' -SimpleMatch
 if ($leftovers) {
     foreach ($hit in $leftovers) {
         $problems += "leftover `${CLAUDE_PLUGIN_ROOT} token: $($hit.Path):$($hit.LineNumber)"
@@ -830,9 +390,7 @@ if ($leftovers) {
     Ok 'no ${CLAUDE_PLUGIN_ROOT} path tokens remain'
 }
 
-$nsLeft = Get-ChildItem -Path $OutDir -Recurse -File -Include '*.md', '*.js' |
-    Where-Object { $_.FullName -ne $noticeCopy } |
-    Select-String -Pattern '/agent365:' -SimpleMatch
+$nsLeft = Select-String -LiteralPath (Select-Ext $outFiles '.md', '.js' | Where-Object { $_ -ne $noticeCopy }) -Pattern '/agent365:' -SimpleMatch
 if ($nsLeft) {
     foreach ($hit in $nsLeft) { $problems += "leftover /agent365: namespace: $($hit.Path):$($hit.LineNumber)" }
 } else {
@@ -842,9 +400,7 @@ if ($nsLeft) {
 $refPattern = [regex]::Escape($KIT_DIR) + '/[A-Za-z0-9_./-]+'
 $checked = 0
 $badRefs = @()
-$skillMdRoots = @((Join-Path $KitPath 'skills'))
-if (Test-Path -LiteralPath (Join-Path $KitPath 'addons')) { $skillMdRoots += (Join-Path $KitPath 'addons') }
-foreach ($file in ($skillMdRoots | ForEach-Object { Get-ChildItem -Path $_ -Filter 'SKILL.md' -Recurse })) {
+foreach ($file in ('skills', 'addons' | ForEach-Object { Get-ChildItem -Path (Join-Path $KitPath $_) -Filter 'SKILL.md' -Recurse })) {
     $text = Get-Content -LiteralPath $file.FullName -Raw
     foreach ($m in [regex]::Matches($text, $refPattern)) {
         $rel = $m.Value.TrimEnd('.', ',', ')', '`')
@@ -864,58 +420,57 @@ if ($badRefs) {
     Ok "all $checked skill file references resolve"
 }
 
-$jsFiles = @(Get-ChildItem -Path $KitPath -Recurse -File -Include '*.js', '*.mjs')
-foreach ($js in $jsFiles) {
-    & node --check $js.FullName 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) { $problems += "JS syntax error: $($js.FullName)" }
-}
-Ok "$($jsFiles.Count) JS/MJS files parse cleanly"
+$before = $problems.Count
+$jsFiles = Select-Ext $kitFiles '.js', '.mjs'
+$problems += @($jsFiles | ForEach-Object -ThrottleLimit 8 -Parallel {
+    & node --check $_ 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { "JS syntax error: $_" }
+} | Sort-Object)
+if ($problems.Count -eq $before) { Ok "$($jsFiles.Count) JS/MJS files parse cleanly" }
 
-$canonicalNames = @((Get-ChildItem -Path (Join-Path $KitPath 'skills') -Directory).Name)
-if (Test-Path -LiteralPath (Join-Path $KitPath 'addons')) {
-    $canonicalNames += @((Get-ChildItem -Path (Join-Path $KitPath 'addons') -Directory).Name)
-}
-$canonicalNames = $canonicalNames | Sort-Object
+$before = $problems.Count
+$canonicalNames = [string[]]($skillNames + $addonNames)
+[Array]::Sort($canonicalNames, [StringComparer]::Ordinal)
 foreach ($target in $discoveryTargets) {
-    $names = (Get-ChildItem -Path (Join-Path $OutDir $target.Path) -Directory).Name | Sort-Object
-    if (Compare-Object $canonicalNames $names) {
+    if (Compare-Object $canonicalNames (Get-DirNames (Join-Path $OutDir $target.Path))) {
         $problems += "discovery copy out of sync: $($target.Path)"
     }
 }
-Ok "discovery copies match canonical skills + add-ons ($($canonicalNames.Count) total)"
+if ($problems.Count -eq $before) { Ok "discovery copies match canonical skills + add-ons ($($canonicalNames.Count) total)" }
 
+$before = $problems.Count
 $hookCmds = Select-String -Path (Join-Path $KitPath 'skills\*\SKILL.md') -Pattern 'command:\s*node'
 foreach ($hit in $hookCmds) {
     if ($hit.Line -notmatch '\$\{CLAUDE_PROJECT_DIR\}') {
         $problems += "hook command not repointed: $($hit.Path):$($hit.LineNumber)"
     }
 }
-Ok "$($hookCmds.Count) hook commands repointed to `${CLAUDE_PROJECT_DIR}"
+if ($problems.Count -eq $before) { Ok "$($hookCmds.Count) hook commands repointed to `${CLAUDE_PROJECT_DIR}" }
 
 # Claims the fix-ups removed must not reappear elsewhere in the shipped guidance.
+$before = $problems.Count
 $retracted = @(
     @{ Pattern = 'auto-registers `IExporterTokenCache'; Why = '.NET token cache is registered explicitly, not by the distro' },
     @{ Pattern = 'Auto-registered by the Microsoft.OpenTelemetry distro'; Why = '.NET token cache is registered explicitly, not by the distro' },
     @{ Pattern = 'cache is auto-registered by `UseMicrosoftOpenTelemetry'; Why = '.NET token cache is registered explicitly, not by the distro' },
     @{ Pattern = 'RefreshObservabilityToken('; Why = 'the Node.js method is refreshObservabilityToken (camelCase)'; CaseSensitive = $true }
 )
+$kitMarkdown = Select-Ext $kitFiles '.md'
 foreach ($r in $retracted) {
-    $hits = Get-ChildItem -Path $KitPath -Recurse -File -Include '*.md' |
-        Select-String -Pattern $r.Pattern -SimpleMatch -CaseSensitive:([bool]$r['CaseSensitive'])
+    $hits = Select-String -LiteralPath $kitMarkdown -Pattern $r.Pattern -SimpleMatch -CaseSensitive:([bool]$r['CaseSensitive'])
     foreach ($hit in $hits) { $problems += "retracted claim '$($r.Pattern)' ($($r.Why)): $($hit.Path):$($hit.LineNumber)" }
 }
-Ok 'no retracted claims remain in shipped guidance'
+if ($problems.Count -eq $before) { Ok 'no retracted claims remain in shipped guidance' }
 
+$before = $problems.Count
 foreach ($f in @('LICENSE', 'LICENSE-agent365-skills', 'NOTICE.md')) {
     if (-not (Test-Path -LiteralPath (Join-Path $KitPath $f))) { $problems += "missing $KIT_DIR/$f" }
 }
-if (Test-Path -LiteralPath (Join-Path $KitPath 'addons')) {
-    $copilotText = [IO.File]::ReadAllText((Join-Path $KitPath 'copilot-instructions.md'))
-    foreach ($a in (Get-ChildItem -LiteralPath (Join-Path $KitPath 'addons') -Directory).Name) {
-        if (-not $copilotText.Contains("## Add-on: $a")) { $problems += "copilot-instructions.md does not list add-on $a" }
-    }
+$copilotText = [IO.File]::ReadAllText((Join-Path $KitPath 'copilot-instructions.md'))
+foreach ($a in $addonNames) {
+    if (-not $copilotText.Contains("## Add-on: $a")) { $problems += "copilot-instructions.md does not list add-on $a" }
 }
-Ok 'licences present; Copilot instructions list every add-on'
+if ($problems.Count -eq $before) { Ok 'licences present; Copilot instructions list every add-on' }
 
 if ($problems.Count -gt 0) {
     Write-Host ''
@@ -924,15 +479,25 @@ if ($problems.Count -gt 0) {
     throw 'Build verification failed.'
 }
 
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+# Entries come from an explicit list: Compress-Archive leaves out hidden items, which on
+# Linux is every dot-folder the kit is made of.
+function New-Zip([string] $ZipPath, [string] $Base, [string[]] $Entries) {
+    if (Test-Path -LiteralPath $ZipPath) { Remove-Item -LiteralPath $ZipPath -Force }
+    $archive = [IO.Compression.ZipFile]::Open($ZipPath, [IO.Compression.ZipArchiveMode]::Create)
+    try {
+        foreach ($rel in $Entries) {
+            [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, (Join-Path $Base $rel), $rel, [IO.Compression.CompressionLevel]::Optimal)
+        }
+    } finally { $archive.Dispose() }
+    Ok "$(Split-Path -Leaf $ZipPath) ($([math]::Round((Get-Item -LiteralPath $ZipPath).Length / 1KB)) KB)"
+}
+
 if ($Zip) {
     Step 'Packaging'
-    $zipName = "agent365-onboarding-kit-v$KitVersion.zip"
-    $zipPath = Join-Path $RepoRoot $zipName
-    if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
-    # -Path with \* keeps the archive rooted at the kit contents, not at kit/.
-    Compress-Archive -Path (Join-Path $OutDir '*') -DestinationPath $zipPath -Force
-    $sizeKb = [math]::Round((Get-Item -LiteralPath $zipPath).Length / 1KB)
-    Ok "$zipName ($sizeKb KB)"
+    $kitEntries = [string[]]@($outFiles | ForEach-Object { [IO.Path]::GetRelativePath($OutDir, $_).Replace('\', '/') })
+    [Array]::Sort($kitEntries, [StringComparer]::Ordinal)
+    New-Zip (Join-Path $RepoRoot "agent365-onboarding-kit-v$KitVersion.zip") $OutDir $kitEntries
 }
 
 # tools/prepare-workspace.mjs copies kit/** and examples/<id>/** as listed in
@@ -949,7 +514,7 @@ if ((Resolve-Path -LiteralPath $OutDir).Path.TrimEnd('\') -eq (Join-Path $RepoRo
     foreach ($root in $roots) {
         $listed = (& git -C $RepoRoot -c core.quotepath=off ls-files --cached --others --exclude-standard -z -- $root) -split "`0"
         if ($LASTEXITCODE -ne 0) { throw "git ls-files failed for $root" }
-        foreach ($rel in ($listed | Where-Object { $_ } | Sort-Object -Unique -CaseSensitive)) {
+        foreach ($rel in ($listed | Where-Object { $_ } | Sort-Object -Unique -CaseSensitive -Culture '')) {
             $abs = Join-Path $RepoRoot $rel
             if (-not (Test-Path -LiteralPath $abs -PathType Leaf)) { continue }
             $f = Get-Item -LiteralPath $abs -Force
@@ -958,9 +523,8 @@ if ((Resolve-Path -LiteralPath $OutDir).Path.TrimEnd('\') -eq (Join-Path $RepoRo
             $sumLines += "$hash  $rel"
         }
     }
-    $examples = @()
     $catalog = Join-Path (Join-Path $RepoRoot 'build') 'bundle-examples.json'
-    if (Test-Path -LiteralPath $catalog) { $examples = @(Get-Content -LiteralPath $catalog -Raw -Encoding UTF8 | ConvertFrom-Json) }
+    $examples = @(Get-Content -LiteralPath $catalog -Raw -Encoding UTF8 | ConvertFrom-Json)
     $manifest = [ordered]@{
         schemaVersion   = 1
         bundleVersion   = $KitVersion
@@ -976,17 +540,8 @@ if ((Resolve-Path -LiteralPath $OutDir).Path.TrimEnd('\') -eq (Join-Path $RepoRo
     Ok "manifest lists $($manifestFiles.Count) files, $($examples.Count) examples"
 
     if ($Zip) {
-        $bundleZip = Join-Path $RepoRoot "agent365-onboarding-bundle-v$KitVersion.zip"
-        if (Test-Path -LiteralPath $bundleZip) { Remove-Item -LiteralPath $bundleZip -Force }
         $bundleRel = @($manifestFiles | ForEach-Object { $_.path }) + @('BUNDLE-MANIFEST.json', 'SHA256SUMS.txt')
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-        $archive = [IO.Compression.ZipFile]::Open($bundleZip, [IO.Compression.ZipArchiveMode]::Create)
-        try {
-            foreach ($rel in $bundleRel) {
-                [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, (Join-Path $RepoRoot $rel), $rel, [IO.Compression.CompressionLevel]::Optimal)
-            }
-        } finally { $archive.Dispose() }
-        Ok "agent365-onboarding-bundle-v$KitVersion.zip ($([math]::Round((Get-Item -LiteralPath $bundleZip).Length / 1KB)) KB)"
+        New-Zip (Join-Path $RepoRoot "agent365-onboarding-bundle-v$KitVersion.zip") $RepoRoot $bundleRel
     }
 }
 

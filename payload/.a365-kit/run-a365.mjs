@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { StringDecoder } from 'node:string_decoder';
 import {
@@ -70,6 +70,17 @@ export async function runA365(args, { start = spawn, stdout = process.stdout, st
   });
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Node resolves the main module through symlinks and junctions but leaves argv[1] as
+// typed, so both sides are compared as real paths.
+function isEntryPoint() {
+  try {
+    return Boolean(process.argv[1]) &&
+      fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint()) {
   process.exitCode = await runA365(process.argv.slice(2));
 }

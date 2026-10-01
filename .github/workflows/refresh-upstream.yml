@@ -45,11 +45,14 @@ jobs:
         shell: pwsh
         run: |
           $bundled = (Get-Content kit/.a365-kit/KIT-VERSION.json -Raw | ConvertFrom-Json).upstreamCommit
-          $remote  = (git ls-remote https://github.com/microsoft/agent365-skills.git "refs/heads/$env:UPSTREAM_REF").Split("`t")[0]
-          if (-not $remote) { $remote = (git ls-remote https://github.com/microsoft/agent365-skills.git "refs/tags/$env:UPSTREAM_REF").Split("`t")[0] }
-          $short = $remote.Substring(0, 7)
+          $lines = @(git ls-remote https://github.com/microsoft/agent365-skills.git "refs/heads/$env:UPSTREAM_REF" "refs/tags/$env:UPSTREAM_REF" "refs/tags/$env:UPSTREAM_REF^{}")
+          if (-not $lines) { throw "microsoft/agent365-skills has no branch or tag named $env:UPSTREAM_REF" }
+          # An annotated tag names its commit only on the peeled ^{} line, which must be asked for.
+          $full = (@($lines | Where-Object { $_ -like '*^{}' }) + $lines)[0].Split("`t")[0]
+          $short = $full.Substring(0, 7)
           "bundled=$bundled"  >> $env:GITHUB_OUTPUT
           "remote=$short"     >> $env:GITHUB_OUTPUT
+          "commit=$full"      >> $env:GITHUB_OUTPUT
           $changed = ($short -ne $bundled) -or ('${{ github.event.inputs.force }}' -eq 'true')
           "changed=$($changed.ToString().ToLower())" >> $env:GITHUB_OUTPUT
           Write-Host "bundled upstream: $bundled   remote $env:UPSTREAM_REF: $short   changed: $changed"
@@ -66,11 +69,15 @@ jobs:
           $parts = (Get-Content build/kit.version -Raw).Trim().Split('.')
           $next = "$($parts[0]).$($parts[1]).$([int]$parts[2] + 1)"
           [IO.File]::WriteAllText("$PWD/build/kit.version", "$next`n")
-          ./build/Build-Kit.ps1 -UpstreamRef $env:UPSTREAM_REF -Zip
+          ./build/Build-Kit.ps1 -UpstreamRef '${{ steps.probe.outputs.commit }}' -Zip
           $m = Get-Content kit/.a365-kit/KIT-VERSION.json -Raw | ConvertFrom-Json
           "kit=$($m.kitVersion)"           >> $env:GITHUB_OUTPUT
           "upstream=$($m.upstreamVersion)" >> $env:GITHUB_OUTPUT
           "commit=$($m.upstreamCommit)"    >> $env:GITHUB_OUTPUT
+
+      - name: Verify the rebuilt kit
+        if: steps.probe.outputs.changed == 'true'
+        uses: ./.github/actions/verify-kit
 
       - name: Commit the rebuilt kit
         if: steps.probe.outputs.changed == 'true'
@@ -104,7 +111,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $title = "Upstream refresh failed for ${{ env.UPSTREAM_REF }} @ ${{ steps.probe.outputs.remote }}"
-          $body  = "The scheduled rebuild against microsoft/agent365-skills ``${{ env.UPSTREAM_REF }}`` (``${{ steps.probe.outputs.remote }}``) failed.`n`nMost likely an upstream rewording broke one of the asserted fix-ups in ``build/Build-Kit.ps1`` or ``build/upstream-fixups.json`` -- the log names the file and the fix-up id. Update the fix-up (or delete it if upstream fixed the underlying bug) and re-run.`n`nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          $body  = "The scheduled rebuild against microsoft/agent365-skills ``${{ env.UPSTREAM_REF }}`` (``${{ steps.probe.outputs.remote }}``) failed.`n`nMost likely an upstream rewording broke one of the asserted fix-ups in ``build/upstream-fixups.json``; the log names the file and the fix-up id. Update the fix-up (or delete it if upstream fixed the underlying bug) and re-run.`n`nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           $open = gh issue list --label upstream-refresh --state open --json number --jq '.[0].number'
           if ($open) { gh issue comment $open --body $body }
           else {

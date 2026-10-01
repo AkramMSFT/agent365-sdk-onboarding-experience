@@ -26,7 +26,8 @@ set -euo pipefail
 
 TRIGGER='Onboard this agent to Agent 365.'
 
-KIT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# A set CDPATH can make cd pick another directory and echo it, corrupting KIT_ROOT.
+KIT_ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 DOCTOR_ONLY=0
 SKIP_DOCTOR=0
@@ -68,13 +69,15 @@ resolve_update_source() {
   local v
   if [ -n "$UPDATE_FROM" ]; then RESOLVED_SOURCE="$UPDATE_FROM"; SOURCE_ORIGIN='--update-from'; return; fi
   if [ -n "${A365_KIT_UPDATE_SOURCE:-}" ]; then RESOLVED_SOURCE="$A365_KIT_UPDATE_SOURCE"; SOURCE_ORIGIN='A365_KIT_UPDATE_SOURCE'; return; fi
-  if [ -f "$KIT_CONFIG" ] && command -v node >/dev/null 2>&1; then
-    v="$(read_update_source "$KIT_CONFIG")"
-    if [ -n "$v" ]; then RESOLVED_SOURCE="$v"; SOURCE_ORIGIN='a365-kit.config.json'; return; fi
-  fi
-  if [ -f "$KIT_ROOT/.a365-kit/KIT-VERSION.json" ] && command -v node >/dev/null 2>&1; then
-    v="$(read_update_source "$KIT_ROOT/.a365-kit/KIT-VERSION.json")"
-    if [ -n "$v" ]; then RESOLVED_SOURCE="$v"; SOURCE_ORIGIN='kit build default'; return; fi
+  if command -v node >/dev/null 2>&1; then
+    set -- "$KIT_CONFIG" 'a365-kit.config.json' "$KIT_ROOT/.a365-kit/KIT-VERSION.json" 'kit build default'
+    while [ $# -gt 0 ]; do
+      if [ -f "$1" ]; then
+        v="$(read_update_source "$1")"
+        if [ -n "$v" ]; then RESOLVED_SOURCE="$v"; SOURCE_ORIGIN="$2"; return; fi
+      fi
+      shift 2
+    done
   fi
   RESOLVED_SOURCE="$PUBLIC_SOURCE"; SOURCE_ORIGIN='public GitHub release'
 }
@@ -182,7 +185,7 @@ try {
     if (next > end) throw new Error('Truncated ZIP directory.');
     const name = zip.subarray(offset + 46, offset + 46 + length).toString('utf8').replace(/\\/g, '/').replace(/\/$/, '');
     const type = (zip.readUInt32LE(offset + 38) >>> 16) & 0xf000;
-    if (!name || name.includes(':') || name.includes('\0') || name.split('/').some(part => !part || part === '.' || part === '..') ||
+    if (!name || name.includes(':') || name.includes('\0') || name.split('/').some(part => !part || part === '.' || part === '..' || /[. ]$/.test(part)) ||
         seen.has(name.toLowerCase()) || (type !== 0 && type !== 0x8000 && type !== 0x4000)) {
       throw new Error('Unsafe or duplicate archive path: ' + name);
     }

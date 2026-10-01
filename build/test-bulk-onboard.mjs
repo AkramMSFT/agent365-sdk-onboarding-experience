@@ -3,12 +3,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.join(here, '..');
-const { main, agentName, EXIT, STATE_FILE } = await import(pathToFileURL(path.join(repo, 'tools', 'bulk-onboard.mjs')).href);
+const { main, agentName, readAgents, EXIT, STATE_FILE } = await import(pathToFileURL(path.join(repo, 'tools', 'bulk-onboard.mjs')).href);
+const roots = [];
+after(() => { for (const r of roots) fs.rmSync(r, { recursive: true, force: true }); });
 
 function fakeHerdr({ running = true, installed = true, notReady = new Set(), statuses = {}, promptResult = {} } = {}) {
   const calls = [];
@@ -41,6 +43,7 @@ function fakeHerdr({ running = true, installed = true, notReady = new Set(), sta
 
 function workspace(folders, { kit = true } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bulk-'));
+  roots.push(root);
   const lines = [];
   for (const f of folders) {
     const dir = path.join(root, f);
@@ -67,6 +70,13 @@ test('names follow the herdr naming rule and stay unique', () => {
   assert.equal(agentName('365-bot'), 'bot');
   assert.equal(agentName('x'.repeat(40)).length, 32);
   assert.match(agentName('!!!'), /^[a-z][a-z0-9_-]*$/);
+});
+
+test('a quoted folder may contain a comma, with or without a name after it', () => {
+  const { root } = workspace([]);
+  const list = path.join(root, 'agents.txt');
+  fs.writeFileSync(list, '"a,b"\n"c,d", Named\nplain, other\n');
+  assert.deepEqual(readAgents(list).map(a => [path.basename(a.dir), a.name]), [['a,b', 'a-b'], ['c,d', 'named'], ['plain', 'other']]);
 });
 
 test('starts one workspace per agent, starts the CLI, and prompts it', async () => {
