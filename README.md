@@ -4,29 +4,33 @@ Onboard an existing AI agent to **Microsoft Agent 365** from whichever coding CL
 
 Microsoft publishes [`agent365-skills`](https://github.com/microsoft/agent365-skills) as a Claude Code plugin. The **Agent 365 Onboarding Kit** in this repository repackages those skills as a folder you drop into your agent's repository, so any skill-aware CLI picks them up with no install step.
 
-The whole flow is four steps: download the kit, extract it into your agent project, run the launcher, and tell your CLI *Onboard this agent to Agent 365.*
+The whole flow is four steps: download the kit into your agent project, run the launcher, start your CLI, and say *Onboard this agent to Agent 365.*
 
 ---
 
 ## Contents
 
-- [What it does](#what-it-does)
-- [Prerequisites](#prerequisites)
-- [Quick start](#quick-start)
-- [Start from a sample instead](#start-from-a-sample-instead)
-- [Onboarding several agents at once](#onboarding-several-agents-at-once)
-- [Before you start: what to have ready](#before-you-start-what-to-have-ready)
-- [How it works](#how-it-works)
-- [What you can ask for](#what-you-can-ask-for)
-- [What is included](#what-is-included)
-- [Supported CLIs](#supported-clis)
-- [Language support](#language-support)
-- [Examples](#examples)
-- [Relationship to Microsoft's skills](#relationship-to-microsofts-skills)
-- [Building and self-hosting](#building-and-self-hosting)
-- [Repository layout](#repository-layout)
-- [Verification](#verification)
-- [What local success does not prove](#what-local-success-does-not-prove)
+- **Getting started**
+  - [What it does](#what-it-does)
+  - [Before you start](#before-you-start)
+  - [Quick start](#quick-start)
+  - [Keeping the kit up to date](#keeping-the-kit-up-to-date)
+  - [Start from a sample instead](#start-from-a-sample-instead)
+  - [Onboarding several agents at once](#onboarding-several-agents-at-once)
+- **Using the kit**
+  - [What you can ask for](#what-you-can-ask-for)
+  - [What is included](#what-is-included)
+  - [Supported CLIs](#supported-clis)
+  - [Language support](#language-support)
+  - [Examples](#examples)
+- **Background**
+  - [How it works](#how-it-works)
+  - [Relationship to Microsoft's skills](#relationship-to-microsofts-skills)
+  - [Verification](#verification)
+  - [What local success does not prove](#what-local-success-does-not-prove)
+- **Maintaining the kit**
+  - [Building and self-hosting](#building-and-self-hosting)
+  - [Repository layout](#repository-layout)
 - [Contributors](#contributors)
 - [Licence](#licence)
 
@@ -44,28 +48,39 @@ Agent 365 onboarding has roughly ten stages: an Entra blueprint, an agent identi
 
 Each path works somewhere, but none works everywhere, so trying the skills often turned into troubleshooting the install. The kit removes the install step. The skills travel **with the project**, in the directories each CLI already looks in.
 
-## Prerequisites
+## Before you start
 
-Install these before you start. The kit's launcher checks all of them and prints the install command for anything missing.
+### Prerequisites
 
 | | Why |
 |---|---|
 | **.NET SDK 8+** | the `a365` CLI is a .NET global tool, so you need the SDK, not just the runtime |
 | **`a365` CLI** | creates the blueprint and Entra identity |
 | **Azure CLI**, signed in | tenant sign-in and app registration |
-| **Node.js 18+** | runs the validators bundled with the kit |
+| **Node.js 18+** | runs the kit's prerequisite check, validators and tools |
 | **Git** | scaffolding starter agents |
 | **An AI coding CLI** | drives the onboarding; see [Supported CLIs](#supported-clis) |
 | **Your agent's own runtime** | Python 3.10+, Node.js, or .NET |
 
-```bash
+You do not have to get this right first time: the launcher in step 2 of the Quick start checks every item and prints the install command for anything missing.
+
+**Windows:**
+
+```powershell
 winget install --id Microsoft.DotNet.SDK.8 -e
 dotnet tool install -g Microsoft.Agents.A365.DevTools.Cli
 winget install --id Microsoft.AzureCLI -e
 az login --allow-no-subscriptions
 ```
 
-On macOS, substitute `brew install --cask dotnet-sdk` and `brew install azure-cli`.
+**macOS:**
+
+```bash
+brew install --cask dotnet-sdk
+dotnet tool install -g Microsoft.Agents.A365.DevTools.Cli
+brew install azure-cli
+az login --allow-no-subscriptions
+```
 
 Then at least one CLI:
 
@@ -80,70 +95,7 @@ Three things that are easy to miss, all covered in the guide:
 - **A model provider key.** The kit onboards your agent; it does not give it a model. Your project still needs its own `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or Azure OpenAI settings, or the agent registers successfully and then fails on its first message.
 - **On Windows, use a normal terminal.** Per-user tools are invisible to an elevated shell.
 
-## Quick start
-
-Run these from the root of your agent project, the folder that holds your agent's source.
-
-> Use the **release asset**, not GitHub's green Code > Download ZIP button. That button
-> gives you the whole repository inside a wrapper folder, which puts the skills where no CLI
-> looks. The extraction succeeds and your CLI then finds nothing, so the mistake is easy to
-> miss. The commands below fetch the right archive.
-
-**Windows PowerShell:**
-
-```powershell
-Invoke-WebRequest -Uri "https://github.com/AkramMSFT/agent365-sdk-onboarding-experience/releases/latest/download/agent365-onboarding-kit-latest.zip" -OutFile "kit.zip"
-Expand-Archive -Path kit.zip -DestinationPath . -Force
-.\agent365-kit.ps1
-```
-
-**macOS / Linux:**
-
-```bash
-curl -L -o kit.zip https://github.com/AkramMSFT/agent365-sdk-onboarding-experience/releases/latest/download/agent365-onboarding-kit-latest.zip
-unzip -o kit.zip -d .
-./agent365-kit.sh
-```
-
-The launcher checks prerequisites, reports which CLIs it can see, and tells you how to start each one. Then open your CLI:
-
-```bash
-copilot
-```
-
-and ask for what you want:
-
-```
-Onboard this agent to Agent 365.
-```
-
-It reads the skills from the folder you just extracted, detects your stack, and works through the stages with you.
-
-## Start from a sample instead
-
-If you have no agent yet, the repository carries seven runnable starters in six languages. This is the one path where GitHub's **Code > Download ZIP** is fine, because the repository itself is the bundle: `kit/` plus `examples/` plus the workspace tool.
-
-```powershell
-git clone https://github.com/AkramMSFT/agent365-sdk-onboarding-experience.git
-cd agent365-sdk-onboarding-experience
-node tools\prepare-workspace.mjs --list
-node tools\prepare-workspace.mjs --example python-teammate --destination ..\my-agent
-```
-
-```bash
-git clone https://github.com/AkramMSFT/agent365-sdk-onboarding-experience.git
-cd agent365-sdk-onboarding-experience
-node tools/prepare-workspace.mjs --list
-node tools/prepare-workspace.mjs --example python-teammate --destination ../my-agent
-```
-
-The tool copies the kit and one example into a **new** directory, verifying every file against the SHA-256 recorded in `BUNDLE-MANIFEST.json`, and refuses to overwrite anything. `--example blank` gives a kit-only workspace. Then work in that directory exactly as above: run the launcher, open your CLI, and say what you want. The catalog is in [`docs/AGENT-EXAMPLES.md`](docs/AGENT-EXAMPLES.md).
-
-## Onboarding several agents at once
-
-Optional. With [herdr](https://herdr.dev), an open-source terminal multiplexer for coding agents, `tools/bulk-onboard.mjs` starts one onboarding session per agent side by side, and herdr shows which sessions are waiting for you. Each onboarding stays interactive, just as it is for a single agent. See [`docs/BULK-ONBOARDING.md`](docs/BULK-ONBOARDING.md).
-
-## Before you start: what to have ready
+### What to have ready
 
 Onboarding creates real objects in a real tenant. Having these ready avoids stopping halfway.
 
@@ -166,22 +118,112 @@ Onboarding creates real objects in a real tenant. Having these ready avoids stop
 
 Everything else is generated during onboarding. Do not invent blueprint ids, secrets, or object ids, and keep model keys and client secrets out of Git.
 
-**[`GUIDE.md`](GUIDE.md) is the full walkthrough**: ten steps from your agent's source to a registered, observable agent with tools, answering in Teams, with Purview and Defender watching. Start there.
+## Quick start
 
-## How it works
+Run every step from the root of your agent project, the folder that holds your agent's source.
 
-A skill is a Markdown file with front matter. CLIs discover skills by looking in known directories, so the kit ships the same content in the directories each one reads:
+> Use the **release asset** the commands below download, not GitHub's green Code > Download
+> ZIP button. That button gives you the whole repository inside a wrapper folder, which puts
+> the skills where no CLI looks. The extraction succeeds and your CLI then finds nothing.
+
+**1. Download and extract the kit.**
+
+Windows PowerShell:
+
+```powershell
+Invoke-WebRequest -Uri "https://github.com/AkramMSFT/agent365-sdk-onboarding-experience/releases/latest/download/agent365-onboarding-kit-latest.zip" -OutFile "kit.zip"
+Expand-Archive -Path kit.zip -DestinationPath . -Force
+```
+
+macOS / Linux:
+
+```bash
+curl -L -o kit.zip https://github.com/AkramMSFT/agent365-sdk-onboarding-experience/releases/latest/download/agent365-onboarding-kit-latest.zip
+unzip -o kit.zip -d . && chmod +x agent365-kit.sh
+```
+
+You can delete `kit.zip` afterwards; nothing depends on it.
+
+**2. Run the launcher.** It changes nothing. It checks the prerequisites, prints the install command for anything missing, and lists the CLIs it can see.
+
+```powershell
+.\agent365-kit.ps1
+```
+
+```bash
+./agent365-kit.sh
+```
+
+Fix anything it flags, open a **new** terminal so newly installed tools are on PATH, and run it again until everything passes. If Windows says running scripts is disabled, use `powershell -ExecutionPolicy Bypass -File .\agent365-kit.ps1`, which changes the setting for that one run only.
+
+**3. Start your CLI in the same folder.**
+
+```bash
+copilot
+```
+
+or `claude`. Cursor, Codex, Gemini CLI and the other CLIs in [Supported CLIs](#supported-clis) read the skills when you open this folder in them.
+
+Check that it found the skills: type `/skills` in Copilot CLI, or ask Claude Code *What Agent 365 skills do you have?* You should see fifteen. If you see none, the kit was extracted somewhere other than your project root.
+
+**4. Ask for the onboarding.**
 
 ```
-your-agent-project/
-  .a365-kit/            canonical: skills, shared docs, validators, prerequisite checker
-  .claude/skills/       discovery copy - Claude Code
-  .agents/skills/       discovery copy - Copilot, Cursor, Codex, Gemini CLI, and others
-  agent365-kit.ps1      launcher: prerequisite check and per-CLI activation (Windows)
-  agent365-kit.sh       the same, macOS and Linux
+Onboard this agent to Agent 365.
 ```
 
-The discovery copies are **byte-identical**, because every internal reference points at `.a365-kit/`. That single indirection is what lets one copy serve every CLI, and the build verifies the copies match.
+The CLI detects your stack and works through the stages with you, and asks before it creates anything in your tenant. **[`GUIDE.md`](GUIDE.md) walks through every stage**, from your agent's source to a registered, observable agent answering in Teams.
+
+## Keeping the kit up to date
+
+Say *Update the Agent 365 kit.* in your CLI, or run the launcher:
+
+```powershell
+.\agent365-kit.ps1 -Update
+```
+
+```bash
+./agent365-kit.sh --update
+```
+
+Only the kit's own files are replaced. Your agent, `.env`, configuration and any skills you added stay as they are. A fix in a new release reaches an agent you onboarded earlier when you ask for that capability again; the release notes say which phrase to use.
+
+> Kits older than 0.2.12 cannot update a project inside a OneDrive folder on Windows. Extract
+> the new kit zip over the project once, as in step 1 of the Quick start; later updates work.
+
+**Updating from your own mirror.** Updates come from the public release unless you point them at another URL or a file path:
+
+| Scope | Windows | macOS / Linux |
+|---|---|---|
+| One update | `.\agent365-kit.ps1 -Update -UpdateFrom <zip-or-url>` | `./agent365-kit.sh --update --update-from <zip-or-url>` |
+| One shell or CI job | `$env:A365_KIT_UPDATE_SOURCE = '<zip-or-url>'` | `export A365_KIT_UPDATE_SOURCE=<zip-or-url>` |
+| Every update in this project | `.\agent365-kit.ps1 -SetUpdateSource <zip-or-url>` | `./agent365-kit.sh --set-update-source <zip-or-url>` |
+
+Setting a project source writes `a365-kit.config.json`. Commit it so the whole team updates from the same place, as long as the URL or path holds no credentials. A network share holding `agent365-onboarding-kit-latest.zip` works with no web server at all.
+
+## Start from a sample instead
+
+If you have no agent yet, the repository carries seven runnable starters in six languages. This is the one path where GitHub's **Code > Download ZIP** is fine, because the repository itself is the bundle: `kit/` plus `examples/` plus the workspace tool.
+
+```powershell
+git clone https://github.com/AkramMSFT/agent365-sdk-onboarding-experience.git
+cd agent365-sdk-onboarding-experience
+node tools\prepare-workspace.mjs --list
+node tools\prepare-workspace.mjs --example python-teammate --destination ..\my-agent
+```
+
+```bash
+git clone https://github.com/AkramMSFT/agent365-sdk-onboarding-experience.git
+cd agent365-sdk-onboarding-experience
+node tools/prepare-workspace.mjs --list
+node tools/prepare-workspace.mjs --example python-teammate --destination ../my-agent
+```
+
+The tool copies the kit and one example into a **new** directory, checks every file against the SHA-256 recorded in `BUNDLE-MANIFEST.json`, and refuses to overwrite anything. `--example blank` gives a kit-only workspace. Then continue from step 2 of the Quick start in that directory. The catalog is in [`docs/AGENT-EXAMPLES.md`](docs/AGENT-EXAMPLES.md).
+
+## Onboarding several agents at once
+
+Optional. With [herdr](https://herdr.dev), an open-source terminal multiplexer for coding agents, `tools/bulk-onboard.mjs` starts one onboarding session per agent side by side, and herdr shows which sessions are waiting for you. Each onboarding stays interactive, just as it is for a single agent. See [`docs/BULK-ONBOARDING.md`](docs/BULK-ONBOARDING.md).
 
 ## What you can ask for
 
@@ -245,6 +287,8 @@ From there it previews `a365 setup all` with `--dry-run`, shows exactly what wil
 
 An agent gets tools three ways and the kit covers all three: Work IQ MCP servers (Microsoft-hosted, Entra-gated), local function tools, and external MCP servers (the wider ecosystem, ungoverned by Agent 365). Only the first appears in the Agent 365 registry, and the add-ons for the other two say so. When one MCP server fails, the others keep working: for the SDKs that would otherwise fail the whole turn, the kit checks each server before the run.
 
+The hosts the kit generates answer a prompt the model refuses, or a content filter blocks, with a plain refusal, and any other failure with a short apology. The error details go to the log, never to the user.
+
 ## Supported CLIs
 
 Support follows from where each CLI looks for skills, not from anything kit-specific:
@@ -268,7 +312,7 @@ Most of onboarding never reads your source. The blueprint, identity, agentic use
 
 ## Examples
 
-Seven runnable starters, each with an offline mode that needs no key and no tenant, plus opt-in live inference. Prepare one with `tools/prepare-workspace.mjs`; see [`docs/AGENT-EXAMPLES.md`](docs/AGENT-EXAMPLES.md).
+Seven runnable starters, each with an offline mode that needs no key and no tenant, plus opt-in live inference. Prepare one with `tools/prepare-workspace.mjs`; see [Start from a sample instead](#start-from-a-sample-instead) and [`docs/AGENT-EXAMPLES.md`](docs/AGENT-EXAMPLES.md).
 
 | Example | Language | What it shows |
 |---|---|---|
@@ -282,6 +326,21 @@ Seven runnable starters, each with an offline mode that needs no key and no tena
 
 The examples and the workspace tool were contributed by Gerard Salvador López.
 
+## How it works
+
+A skill is a Markdown file with front matter. CLIs discover skills by looking in known directories, so the kit ships the same content in the directories each one reads:
+
+```
+your-agent-project/
+  .a365-kit/            canonical: skills, shared docs, validators, prerequisite checker
+  .claude/skills/       discovery copy for Claude Code
+  .agents/skills/       discovery copy for Copilot, Cursor, Codex, Gemini CLI, and others
+  agent365-kit.ps1      launcher: prerequisite check, per-CLI activation, updates (Windows)
+  agent365-kit.sh       the same for macOS and Linux
+```
+
+The discovery copies are **byte-identical**, because every internal reference points at `.a365-kit/`. That single indirection is what lets one copy serve every CLI, and the build verifies the copies match.
+
 ## Relationship to Microsoft's skills
 
 This is a repackage, not a fork. The build clones upstream fresh on every run and re-applies a fixed set of edits, each of which asserts the upstream text it expects to find. If Microsoft reword a patched passage, the build fails and names the file rather than silently emitting something broken.
@@ -293,54 +352,6 @@ Changes fall into two groups, both itemised in [`NOTICE.md`](NOTICE.md):
 
 Problems with what the skills *do* belong upstream at [microsoft/agent365-skills](https://github.com/microsoft/agent365-skills/issues). Problems with the packaging, launchers, prerequisite checker or build belong here.
 
-## Building and self-hosting
-
-Requires PowerShell 7+, Git and Node.js.
-
-```powershell
-.\build\Build-Kit.ps1 -UpstreamPath C:\src\agent365-skills
-.\build\Build-Kit.ps1 -UpstreamRef <commit> -Zip
-```
-
-The first builds from a local clone of upstream; the second clones upstream at a branch, tag or commit and produces the release archives. CI rebuilds from the commit recorded in `kit/.a365-kit/KIT-VERSION.json` and fails if the committed `kit/`, manifest or checksums differ from that rebuild. Output lands in `kit/`, and `-Zip` also writes two archives at the repository root: `agent365-onboarding-kit-v<version>.zip` (the kit alone, for extracting into an existing project) and `agent365-onboarding-bundle-v<version>.zip` (kit, examples, tools and docs). Building into `kit/` also regenerates `BUNDLE-MANIFEST.json` and `SHA256SUMS.txt`, which the workspace tool verifies against.
-
-The build refuses to emit output it cannot prove coherent. It verifies that no `${CLAUDE_PLUGIN_ROOT}` path tokens or `/agent365:` command references survive, that every path a skill references exists, that every bundled script parses, that the discovery copies match, and that every hook command was repointed. Corrections to Microsoft's files live in two places, both asserted against upstream's exact text on every build: the packaging fix-ups in `Build-Kit.ps1`, and the SDK and playbook corrections in `build/upstream-fixups.json`, each with an id and an expected match count.
-
-**Staying current.** `.github/workflows/refresh-upstream.yml` runs daily, compares upstream `main` against the recorded commit, and when it moves it rebuilds, commits `kit/` with the manifest, and cuts a release with both archives. If a fix-up assertion fails it opens an issue instead.
-
-**Updating in place.** `.\agent365-kit.ps1 -Update`, or *"update the Agent 365 kit"* from inside your CLI. Only the kit's own paths are replaced, never your agent, `.env`, config, or skills you added.
-
-**Using your own mirror.** The public release is only the default. Point updates at a URL or a filesystem path:
-
-| Scope | How |
-|---|---|
-| One call | `-UpdateFrom <zip-or-url>` |
-| One shell or CI job | `A365_KIT_UPDATE_SOURCE=<zip-or-url>` |
-| One project, whole team | `-SetUpdateSource <zip-or-url>`, which writes `a365-kit.config.json` for you to commit |
-| Your own build | `.\build\Build-Kit.ps1 -UpdateSource <zip-or-url> -Zip` |
-
-A network share holding `agent365-onboarding-kit-latest.zip` works with no web server at all.
-
-## Repository layout
-
-| Path | Purpose |
-|---|---|
-| `build/Build-Kit.ps1` | the build, which derives `kit/` from upstream |
-| `build/upstream-fixups.json` | SDK and playbook corrections to Microsoft's files, each asserted by id and match count |
-| `build/bundle-examples.json` | the example catalog written into the manifest |
-| `build/kit.version` | this kit's packaging version |
-| `payload/` | files authored here and copied into every build: add-ons, validators, launchers, helpers, prerequisite checker |
-| `kit/` | built output, committed so the repository can be used directly and cloned as a bundle |
-| `examples/` | seven runnable starter agents |
-| `tools/prepare-workspace.mjs` | copies the kit and one example into a new directory, verifying every file's hash |
-| `tools/bulk-onboard.mjs` | starts the onboarding for several agents in parallel herdr sessions (optional) |
-| `BUNDLE-MANIFEST.json`, `SHA256SUMS.txt` | generated by the build; what the workspace tool verifies against |
-| `GUIDE.md` | the end-to-end walkthrough |
-| `NOTICE.md` | attribution and every modification made to upstream |
-| `docs/` | deeper references: per-CLI setup, lifecycle, bulk onboarding |
-
-`kit/`, the manifest and the checksums are generated. Changes to Microsoft's skills go in `build/Build-Kit.ps1` or `build/upstream-fixups.json`; changes to the kit's own content go in `payload/`.
-
 ## Verification
 
 Built against upstream `agent365-skills` v1.0.2 and verified on Windows 11.
@@ -351,15 +362,17 @@ Built against upstream `agent365-skills` v1.0.2 and verified on Windows 11.
 | Onboarding | A Python agent taken end to end through Copilot CLI on a live tenant: blueprint, agent identity, eleven delegated permission grants, observability, Work IQ tools, messaging endpoint, published package, and the agent answering in Teams. |
 | Node.js and .NET | Both taken through Copilot CLI on the same tenant. The Node run showed the exporter switch and the per-turn token refresh landing in generated code. The .NET run exercised the validator's exporter and per-turn registration checks on a hosted agent. |
 | Java | The `add-java-agent` output compiles on JDK 21 and runs: the health check returns 200, and anonymous or forged requests return 401. Its OTLP encoder matches the Python SDK's output field by field. |
+| Shared helpers | The MCP server check and the turn-reply helpers were run against the real Python, Node.js and .NET SDKs, and CI runs the shipped code on every build. |
 | Examples | CI builds all seven offline and runs their tests on every push, Go and Rust included. |
 | Reproducible build | CI rebuilds the kit from the upstream commit it records, and fails if the committed kit, manifest or checksums differ by a single byte, or if the tag and version fields disagree. |
-| Launchers | CI runs the Windows launcher's Copilot wiring, update-source and in-place update under Windows PowerShell 5.1 and PowerShell 7, and fails if either writes a byte-order mark. |
-| Observability grant | `grant-observability.mjs` passes sixteen offline tests against a simulated Microsoft Graph, and a real grant followed by a check has run against a live tenant. |
+| Launchers | CI runs each launcher's Copilot wiring, update-source and in-place update under Windows PowerShell 5.1, PowerShell 7 and bash, and fails if any of them writes a byte-order mark. |
+| Validators | The kit's own validators run against every example and a set of fixtures on every build. |
+| Observability grant | `grant-observability.mjs` passes offline tests against a simulated Microsoft Graph, and a real grant followed by a check has run against a live tenant. |
 | Workspace tool | `prepare-workspace.mjs` copies an example from a clone, verifies every hash, and refuses an existing destination. |
 | Bulk onboarding | `bulk-onboard.mjs` passes offline tests against a stand-in for herdr, and on Windows 11 with herdr 0.9.1 it started two Copilot CLI sessions in parallel that each received their request and listed the kit's skills. A full onboarding through it has not been run yet. |
 | Path guard | Blocks writes into the kit and outside the project, and allows writes to agent source. |
 
-Not yet exercised: the `.agents/skills/` path under Cursor, Codex, Gemini CLI, Amp, Cline, OpenCode, Warp and Antigravity, and a Java agent taken all the way to a live tenant.
+Not yet exercised: the `.agents/skills/` path under Cursor, Codex, Gemini CLI, Amp, Cline, OpenCode, Warp and Antigravity, the bash launcher on macOS, and a Java agent taken all the way to a live tenant.
 
 ## What local success does not prove
 
@@ -373,6 +386,46 @@ The kit gives you source and a guided workflow, not a pre-provisioned agent.
 | A validator reporting `ok` on a Go or Rust project | Anything about onboarding. Those are manual-integration stacks. |
 
 Before declaring an agent done: confirm the tenant, blueprint and identity ids from real setup output; have the administrator review the actual scopes requested; send one authorised message through Teams and see the reply; and check that a turn produced telemetry for that agent id, not merely an exporter 200.
+
+## Building and self-hosting
+
+Requires PowerShell 7+, Git and Node.js. The tests use Node.js 24, as CI does.
+
+```powershell
+.\build\Build-Kit.ps1 -UpstreamRef <commit> -Zip
+node --test build/test-*.mjs
+```
+
+- **Source.** `-UpstreamRef` clones upstream at a branch, tag or commit; `-UpstreamPath C:\src\agent365-skills` builds from a local clone instead.
+- **Output.** The kit lands in `kit/`. With `-Zip` the build also writes `agent365-onboarding-kit-v<version>.zip` (the kit alone) and `agent365-onboarding-bundle-v<version>.zip` (kit, examples, tools and docs) at the repository root. Building into `kit/` regenerates `BUNDLE-MANIFEST.json` and `SHA256SUMS.txt`, which the workspace tool verifies against.
+- **Changes to Microsoft's files.** Every one is an entry in `build/upstream-fixups.json` with an id and an exact match count, so an upstream rewording fails the build instead of shipping a stale patch. [`CONTRIBUTING.md`](CONTRIBUTING.md) explains how to add one.
+- **Checks.** The build refuses to emit output it cannot prove coherent: no `${CLAUDE_PLUGIN_ROOT}` path tokens or `/agent365:` command references survive, every path a skill references exists, every bundled script parses, the discovery copies match, and every hook command was repointed.
+- **CI.** Each push rebuilds from the commit and timestamp in `kit/.a365-kit/KIT-VERSION.json` and fails if the committed `kit/`, manifest or checksums differ by a single byte, then runs the launcher, validator, tool and example checks.
+- **Staying current.** `.github/workflows/refresh-upstream.yml` runs daily. When upstream `main` moves, it rebuilds, runs the same checks as CI, commits `kit/` with the manifest, and cuts a release with both archives. If a fix-up no longer matches, it opens an issue instead.
+- **Your own default update source.** `.\build\Build-Kit.ps1 -UpdateSource <zip-or-url> -Zip` bakes your mirror into the kit you build.
+
+## Repository layout
+
+| Path | Purpose |
+|---|---|
+| `build/Build-Kit.ps1` | the build, which derives `kit/` from upstream |
+| `build/upstream-fixups.json` | every change made to Microsoft's files, each asserted by id and match count |
+| `build/bundle-examples.json` | the example catalog written into the manifest |
+| `build/kit.version` | this kit's packaging version |
+| `build/test-*.mjs` | tests for the tools, validators, launch helper and shared code |
+| `payload/` | files authored here and copied into every build: add-ons, validators, launchers, helpers, prerequisite checker |
+| `kit/` | built output, committed so the repository can be used directly and cloned as a bundle |
+| `examples/` | seven runnable starter agents |
+| `tools/prepare-workspace.mjs` | copies the kit and one example into a new directory, verifying every file's hash |
+| `tools/bulk-onboard.mjs` | starts the onboarding for several agents in parallel herdr sessions (optional) |
+| `BUNDLE-MANIFEST.json`, `SHA256SUMS.txt` | generated by the build; what the workspace tool verifies against |
+| `.github/` | CI: the build check, the shared release checks, and the daily upstream refresh |
+| `GUIDE.md` | the end-to-end walkthrough |
+| `NOTICE.md` | attribution and every modification made to upstream |
+| `CONTRIBUTING.md` | where each kind of change belongs, and how to add a fix-up |
+| `docs/` | deeper references: per-CLI setup, lifecycle, bulk onboarding |
+
+`kit/`, the manifest and the checksums are generated. Changes to Microsoft's skills go in `build/upstream-fixups.json`; changes to the kit's own content go in `payload/`.
 
 ## Contributors
 
